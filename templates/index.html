@@ -5,6 +5,10 @@
 </head>
 <body>
   <h1>シフト管理アプリ</h1>
+  <!-- リセットボタン -->
+  <form action="{{ url_for('reset_db') }}" method="post" onsubmit="return confirm('本当にリセットしますか？');">
+      <button type="submit" style="background-color:red;color:white;">リセット</button>
+  </form>
   <ul>
     <li><a href="{{ url_for('input_shift') }}">希望シフト入力</a></li>
     <li><a href="{{ url_for('show_shifts') }}">シフト表を見る</a></li>
