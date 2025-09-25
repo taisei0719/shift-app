@@ -1,12 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>シフト表</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <h1>シフト表</h1>
-  <table border="1">
-    <tr><th>日付</th><th>時間帯</th><th>名前</th><th>希望</th></tr>
+
+  <table>
+    <tr>
+      <th>日付</th>
+      <th>時間帯</th>
+      <th>名前</th>
+      <th>希望</th>
+    </tr>
     {% for d in data %}
     <tr>
       <td>{{ d[0] }}</td>
@@ -16,6 +24,9 @@
     </tr>
     {% endfor %}
   </table>
-  <a href="{{ url_for('index') }}">戻る</a>
+
+  <div style="text-align:center; margin-top:20px;">
+    <a href="{{ url_for('index') }}">戻る</a>
+  </div>
 </body>
 </html>

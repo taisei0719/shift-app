@@ -1,2 +1,15 @@
-<h1>スタッフ画面</h1>
-<a href="{{ url_for('shift_input') }}">シフト提出</a>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>スタッフ画面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>スタッフ画面</h1>
+
+    <div style="text-align:center; margin-top:30px;">
+        <a class="button-link" href="{{ url_for('shift_input') }}">シフト提出</a>
+    </div>
+</body>
+</html>

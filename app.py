@@ -47,6 +47,19 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+# -------------------- テストユーザー追加 --------------------
+def add_test_users():
+    conn = get_db()
+    c = conn.cursor()
+    # 管理者アカウント
+    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (1,'admin','admin','pass')")
+    # スタッフアカウント（テスト用）
+    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (2,'yamada','staff','pass')")
+    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (3,'sato','staff','pass')")
+    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (4,'suzuki','staff','pass')")
+    conn.commit()
+    conn.close()
+
 # -------------------- ログイン --------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -109,4 +122,5 @@ def shift_input():
 
 if __name__ == "__main__":
     init_db()
+    add_test_users()
     app.run(debug=True)
