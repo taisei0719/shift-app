@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>希望シフト入力</title>
+</head>
+<body>
+  <h1>希望シフト入力</h1>
+  <form method="post">
+    <label>日付: <input type="text" name="date"></label><br>
+    <label>時間帯: <input type="text" name="time_slot"></label><br>
+    <label>名前: <input type="text" name="name"></label><br>
+    <label>入れる？ <input type="checkbox" name="available"></label><br>
+    <button type="submit">登録</button>
+  </form>
+  <a href="{{ url_for('index') }}">戻る</a>
+</body>
+</html>
