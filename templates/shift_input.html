@@ -6,26 +6,32 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>シフト提出ページ</h1>
+    <h1>シフト提出</h1>
+    <form method="POST">
+        <label>日付: 
+            <input type="date" name="date" required>
+        </label><br><br>
 
-    <form method="post" action="{{ url_for('shift_input') }}">
-    <label>日付:</label>
-    <input type="date" name="date" required><br><br>
+        <label>出勤時間:
+            <select name="start_time" required>
+                {% for h in range(6, 23) %}
+                    <option value="{{ "%02d:00"|format(h) }}">{{ "%02d:00"|format(h) }}</option>
+                    <option value="{{ "%02d:30"|format(h) }}">{{ "%02d:30"|format(h) }}</option>
+                {% endfor %}
+            </select>
+        </label>
 
-    <label>勤務可能時間:</label><br>
-    {% for hour in range(8, 22) %}
-        {% for half in [0, 30] %}
-            {% set t = "%02d:%02d" % (hour, half) %}
-            <input type="checkbox" name="time_slots" value="{{ t }}">{{ t }}
-        {% endfor %}
-        <br>
-    {% endfor %}
+        <label>退勤時間:
+            <select name="end_time" required>
+                {% for h in range(6, 24) %}
+                    <option value="{{ "%02d:00"|format(h) }}">{{ "%02d:00"|format(h) }}</option>
+                    <option value="{{ "%02d:30"|format(h) }}">{{ "%02d:30"|format(h) }}</option>
+                {% endfor %}
+            </select>
+        </label>
 
-    <br><button type="submit">提出</button>
-</form>
-
-    <div style="text-align:center; margin-top:20px;">
-        <a href="{{ url_for('staff') }}">戻る</a>
-    </div>
+        <br><br>
+        <button type="submit">提出</button>
+    </form>
 </body>
 </html>

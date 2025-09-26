@@ -133,24 +133,67 @@ def shift_input():
     if request.method=="POST":
         user_id = session["user_id"]
         date = request.form["date"]
-        selected_times = request.form.getlist("time_slots")
+        start_time = request.form["start_time"]
+        end_time = request.form["end_time"]
 
         conn = get_db()
         c = conn.cursor()
 
-        # shift_requests にまず日付を登録
+        # 日付単位で shift_requests に登録
         c.execute("INSERT INTO shift_requests (user_id, date) VALUES (?, ?)", (user_id, date))
         shift_request_id = c.lastrowid
 
-        # 選択された時間帯を shifts に登録
-        for t in selected_times:
+        # 30分刻みで shifts に時間帯を登録
+        h, m = map(int, start_time.split(":"))
+        while True:
+            t = f"{h:02d}:{m:02d}"
             c.execute("INSERT INTO shifts (shift_request_id, time_slot) VALUES (?, ?)", (shift_request_id, t))
+
+            # 30分刻みで加算
+            if m == 0:
+                m = 30
+            else:
+                m = 0
+                h += 1
+            if f"{h:02d}:{m:02d}" == end_time:
+                break
 
         conn.commit()
         conn.close()
         return redirect(url_for("staff"))
 
     return render_template("shift_input.html")
+
+@app.route("/admin/shift_day/<date>")
+def shift_day(date):
+    if session.get("role") != "admin":
+        return "アクセス権限がありません"
+
+    conn = get_db()
+    c = conn.cursor()
+
+    # 日付ごとのシフト取得（スタッフごと、時間帯ごと）
+    c.execute("""
+        SELECT u.name, s.time_slot
+        FROM shift_requests sr
+        JOIN users u ON sr.user_id = u.id
+        JOIN shifts s ON sr.id = s.shift_request_id
+        WHERE sr.date = ?
+        ORDER BY u.name, s.time_slot
+    """, (date,))
+    data = c.fetchall()
+    conn.close()
+
+    # スタッフごとの時間帯リスト作成
+    schedule = {}
+    for row in data:
+        if row['name'] not in schedule:
+            schedule[row['name']] = []
+        schedule[row['name']].append(row['time_slot'])
+
+    return render_template("admin_shift_day.html", date=date, schedule=schedule)
+
+
 
 
 if __name__ == "__main__":

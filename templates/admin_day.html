@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理者画面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>{{ date }} のシフト一覧</h1>
+    <table border="1">
+        <tr><th>名前</th><th>時間帯</th></tr>
+        {% for s in shifts %}
+        <tr>
+            <td>{{ s['name'] }}</td>
+            <td>{{ s['time_slot'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <a href="{{ url_for('admin') }}">カレンダーに戻る</a>
+</body>
+</html>

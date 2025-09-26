@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理者画面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>{{ year }}年{{ month }}月 シフトカレンダー</h1>
+    <table border="1">
+        <tr>
+            <th>日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th>
+        </tr>
+        {% for week in days|batch(7) %}
+        <tr>
+            {% for day in week %}
+                <td>
+                    {% if day.month == month %}
+                        <a href="{{ url_for('admin_day', date=day.strftime('%Y-%m-%d')) }}">
+                            {{ day.day }}
+                        </a>
+                    {% else %}
+                        <!-- 前後月の日は灰色で -->
+                        <span style="color: #aaa;">{{ day.day }}</span>
+                    {% endif %}
+                </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
