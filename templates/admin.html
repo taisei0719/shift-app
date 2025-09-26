@@ -1,17 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ログイン</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <title>管理者画面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<h1>管理者画面</h1>
-<table border="1">
-<tr><th>日付</th><th>時間帯</th><th>スタッフID</th><th>提出</th></tr>
-{% for r in requests %}
-<tr>
-<td>{{ r['date'] }}</td>
-<td>{{ r['time_slot'] }}</td>
-<td>{{ r['user_id'] }}</td>
-<td>{{ "◯" if r['available'] else "-" }}</td>
-</tr>
-{% endfor %}
-</table>
+<body>
+    <h1>管理者画面</h1>
+
+    <table>
+        <tr>
+            <th>日付</th>
+            <th>時間帯</th>
+            <th>名前</th>
+        </tr>
+        {% for r in requests %}
+        <tr>
+            <td>{{ r['date'] }}</td>
+            <td>{{ r['time_slot'] }}</td>
+            <td>{{ r['name'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

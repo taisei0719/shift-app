@@ -18,28 +18,26 @@ def init_db():
             password TEXT
         )
     ''')
-    # shift_requestsテーブル
+    # shift_requestsテーブル（日付単位）
     c.execute('''
         CREATE TABLE IF NOT EXISTS shift_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            date TEXT,
-            time_slot TEXT,
-            available INTEGER
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     ''')
-    # shiftsテーブル（管理者公開用）
+    # shiftsテーブル（時間帯）
     c.execute('''
         CREATE TABLE IF NOT EXISTS shifts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            time_slot TEXT,
-            user_id INTEGER
+            shift_request_id INTEGER NOT NULL,
+            time_slot TEXT NOT NULL,
+            FOREIGN KEY(shift_request_id) REFERENCES shift_requests(id)
         )
     ''')
     conn.commit()
     conn.close()
-
 
 # -------------------- DB接続 --------------------
 def get_db():
@@ -80,17 +78,44 @@ def login():
                 return redirect(url_for("staff"))
     return render_template("login.html")
 
-# -------------------- 管理者画面 --------------------
+# -------------------- 管理者トップ（カレンダー表示） --------------------
 @app.route("/admin")
 def admin():
     if session.get("role") != "admin":
         return "アクセス権限がありません"
+
+    # 今月を表示
+    today = datetime.today()
+    year, month = today.year, today.month
+
+    # カレンダー生成
+    import calendar
+    cal = calendar.Calendar()
+    days = list(cal.itermonthdates(year, month))
+
+    return render_template("admin_calendar.html", days=days, year=year, month=month)
+
+# -------------------- 日付別のシフト確認 --------------------
+@app.route("/admin/<date>")
+def admin_day(date):
+    if session.get("role") != "admin":
+        return "アクセス権限がありません"
+
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT * FROM shift_requests")
-    requests = c.fetchall()
+    c.execute("""
+        SELECT u.name, s.time_slot
+        FROM shift_requests sr
+        JOIN users u ON sr.user_id = u.id
+        JOIN shifts s ON sr.id = s.shift_request_id
+        WHERE sr.date = ?
+        ORDER BY u.name, s.time_slot
+    """, (date,))
+    shifts = c.fetchall()
     conn.close()
-    return render_template("admin.html", requests=requests)
+
+    return render_template("admin_day.html", date=date, shifts=shifts)
+
 
 # -------------------- スタッフ画面 --------------------
 @app.route("/staff")
@@ -104,20 +129,28 @@ def staff():
 def shift_input():
     if session.get("role") != "staff":
         return "アクセス権限がありません"
+
     if request.method=="POST":
         user_id = session["user_id"]
         date = request.form["date"]
-        time_slot = request.form["time_slot"]
-        available = 1 if request.form.get("available") else 0
+        selected_times = request.form.getlist("time_slots")
+
         conn = get_db()
         c = conn.cursor()
-        c.execute("INSERT INTO shift_requests (user_id,date,time_slot,available) VALUES (?,?,?,?)",
-                  (user_id,date,time_slot,available))
+
+        # shift_requests にまず日付を登録
+        c.execute("INSERT INTO shift_requests (user_id, date) VALUES (?, ?)", (user_id, date))
+        shift_request_id = c.lastrowid
+
+        # 選択された時間帯を shifts に登録
+        for t in selected_times:
+            c.execute("INSERT INTO shifts (shift_request_id, time_slot) VALUES (?, ?)", (shift_request_id, t))
+
         conn.commit()
         conn.close()
         return redirect(url_for("staff"))
-    return render_template("shift_input.html")
 
+    return render_template("shift_input.html")
 
 
 if __name__ == "__main__":

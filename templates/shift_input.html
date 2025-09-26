@@ -9,21 +9,20 @@
     <h1>シフト提出ページ</h1>
 
     <form method="post" action="{{ url_for('shift_input') }}">
-        <label>日付:</label>
-        <input type="date" name="date" required><br><br>
+    <label>日付:</label>
+    <input type="date" name="date" required><br><br>
 
-        <label>時間帯:</label>
-        <select name="time_slot">
-            <option value="9-13">9-13</option>
-            <option value="13-17">13-17</option>
-            <option value="17-21">17-21</option>
-        </select><br><br>
+    <label>勤務可能時間:</label><br>
+    {% for hour in range(8, 22) %}
+        {% for half in [0, 30] %}
+            {% set t = "%02d:%02d" % (hour, half) %}
+            <input type="checkbox" name="time_slots" value="{{ t }}">{{ t }}
+        {% endfor %}
+        <br>
+    {% endfor %}
 
-        <label>出勤可能:</label>
-        <input type="checkbox" name="available"><br><br>
-
-        <button type="submit">提出</button>
-    </form>
+    <br><button type="submit">提出</button>
+</form>
 
     <div style="text-align:center; margin-top:20px;">
         <a href="{{ url_for('staff') }}">戻る</a>
