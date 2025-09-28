@@ -97,6 +97,7 @@ def admin():
 
 # -------------------- 日付別のシフト確認 --------------------
 @app.route("/admin/<date>")
+@app.route("/admin/shift_day/<date>")
 def admin_day(date):
     if session.get("role") != "admin":
         return "アクセス権限がありません"
@@ -108,13 +109,20 @@ def admin_day(date):
         FROM shift_requests sr
         JOIN users u ON sr.user_id = u.id
         JOIN shifts s ON sr.id = s.shift_request_id
-        WHERE sr.date = ?
+        WHERE sr.date=?
         ORDER BY u.name, s.time_slot
     """, (date,))
-    shifts = c.fetchall()
+    rows = c.fetchall()
     conn.close()
 
-    return render_template("admin_day.html", date=date, shifts=shifts)
+    # 名前ごとの時間帯リストに変換
+    schedule = {}
+    for row in rows:
+        if row["name"] not in schedule:
+            schedule[row["name"]] = []
+        schedule[row["name"]].append(row["time_slot"])
+
+    return render_template("admin_day.html", date=date, schedule=schedule)
 
 
 # -------------------- スタッフ画面 --------------------
@@ -163,38 +171,6 @@ def shift_input():
         return redirect(url_for("staff"))
 
     return render_template("shift_input.html")
-
-@app.route("/admin/shift_day/<date>")
-def shift_day(date):
-    if session.get("role") != "admin":
-        return "アクセス権限がありません"
-
-    conn = get_db()
-    c = conn.cursor()
-
-    # 日付ごとのシフト取得（スタッフごと、時間帯ごと）
-    c.execute("""
-        SELECT u.name, s.time_slot
-        FROM shift_requests sr
-        JOIN users u ON sr.user_id = u.id
-        JOIN shifts s ON sr.id = s.shift_request_id
-        WHERE sr.date = ?
-        ORDER BY u.name, s.time_slot
-    """, (date,))
-    data = c.fetchall()
-    conn.close()
-
-    # スタッフごとの時間帯リスト作成
-    schedule = {}
-    for row in data:
-        if row['name'] not in schedule:
-            schedule[row['name']] = []
-        schedule[row['name']].append(row['time_slot'])
-
-    return render_template("admin_shift_day.html", date=date, schedule=schedule)
-
-
-
 
 if __name__ == "__main__":
     init_db()
