@@ -80,23 +80,45 @@ def login():
 
 # -------------------- 管理者トップ（カレンダー表示） --------------------
 @app.route("/admin")
-def admin():
+@app.route("/admin/<int:year>/<int:month>")
+def admin(year=None, month=None):
     if session.get("role") != "admin":
         return "アクセス権限がありません"
 
-    # 今月を表示
-    today = datetime.today()
-    year, month = today.year, today.month
-
-    # カレンダー生成
     import calendar
+    today = datetime.today()
+
+    # URLで指定なければ今月を表示
+    if year is None or month is None:
+        year, month = today.year, today.month
+
     cal = calendar.Calendar()
     days = list(cal.itermonthdates(year, month))
 
-    return render_template("admin_calendar.html", days=days, year=year, month=month)
+    # 前月・翌月の計算
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    return render_template(
+        "admin_calendar.html",
+        days=days,
+        year=year,
+        month=month,
+        prev_year=prev_year,
+        prev_month=prev_month,
+        next_year=next_year,
+        next_month=next_month
+    )
+
 
 # -------------------- 日付別のシフト確認 --------------------
-@app.route("/admin/<date>")
 @app.route("/admin/shift_day/<date>")
 def admin_day(date):
     if session.get("role") != "admin":
@@ -115,14 +137,15 @@ def admin_day(date):
     rows = c.fetchall()
     conn.close()
 
-    # 名前ごとの時間帯リストに変換
     schedule = {}
     for row in rows:
         if row["name"] not in schedule:
             schedule[row["name"]] = []
         schedule[row["name"]].append(row["time_slot"])
 
+    # シフトがゼロ件でも schedule を渡す
     return render_template("admin_day.html", date=date, schedule=schedule)
+
 
 
 # -------------------- スタッフ画面 --------------------
@@ -151,20 +174,11 @@ def shift_input():
         c.execute("INSERT INTO shift_requests (user_id, date) VALUES (?, ?)", (user_id, date))
         shift_request_id = c.lastrowid
 
-        # 30分刻みで shifts に時間帯を登録
-        h, m = map(int, start_time.split(":"))
-        while True:
-            t = f"{h:02d}:{m:02d}"
-            c.execute("INSERT INTO shifts (shift_request_id, time_slot) VALUES (?, ?)", (shift_request_id, t))
-
-            # 30分刻みで加算
-            if m == 0:
-                m = 30
-            else:
-                m = 0
-                h += 1
-            if f"{h:02d}:{m:02d}" == end_time:
-                break
+        # 1レコードだけ保存（開始時刻と終了時刻）
+        c.execute(
+            "INSERT INTO shifts (shift_request_id, time_slot) VALUES (?, ?)",
+            (shift_request_id, f"{start_time}-{end_time}")
+        )
 
         conn.commit()
         conn.close()

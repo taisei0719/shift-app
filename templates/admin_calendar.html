@@ -6,27 +6,32 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>{{ year }}年{{ month }}月 シフトカレンダー</h1>
+    <h1>{{ year }}年 {{ month }}月</h1>
+    
+    <div style="display:flex; justify-content: space-between; margin: 10px 0;">
+        <a href="{{ url_for('admin', year=prev_year, month=prev_month) }}">← 前の月</a>
+        <a href="{{ url_for('admin', year=next_year, month=next_month) }}">次の月 →</a>
+    </div>
+    
     <table border="1">
         <tr>
-            <th>日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th>
-        </tr>
-        {% for week in days|batch(7) %}
-        <tr>
-            {% for day in week %}
+            {% for day in days %}
+                {% if loop.index0 % 7 == 0 %}
+                    </tr><tr>
+                {% endif %}
                 <td>
+                    {{ day.day }}
+                    <br>
                     {% if day.month == month %}
-                        <a href="{{ url_for('admin_day', date=day.strftime('%Y-%m-%d')) }}">
-                            {{ day.day }}
-                        </a>
+                        <a href="{{ url_for('admin_day', date=day.strftime('%Y-%m-%d')) }}">詳細</a>
                     {% else %}
-                        <!-- 前後月の日は灰色で -->
-                        <span style="color: #aaa;">{{ day.day }}</span>
+                        <!-- 当月以外はリンクなし -->
+                        <span style="color: gray;">詳細</span>
                     {% endif %}
                 </td>
             {% endfor %}
         </tr>
-        {% endfor %}
     </table>
+
 </body>
 </html>

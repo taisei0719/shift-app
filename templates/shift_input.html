@@ -7,31 +7,29 @@
 </head>
 <body>
     <h1>シフト提出</h1>
-    <form method="POST">
-        <label>日付: 
-            <input type="date" name="date" required>
-        </label><br><br>
-
-        <label>出勤時間:
+    <form method="post">
+        <label>日付: <input type="date" name="date" required></label><br>
+        
+        <label>勤務開始時刻:
             <select name="start_time" required>
-                {% for h in range(6, 23) %}
-                    <option value="{{ "%02d:00"|format(h) }}">{{ "%02d:00"|format(h) }}</option>
-                    <option value="{{ "%02d:30"|format(h) }}">{{ "%02d:30"|format(h) }}</option>
+                {% for h in range(8, 23) %}
+                  <option value="{{'%02d:00' % h}}">{{'%02d:00' % h}}</option>
+                  <option value="{{'%02d:30' % h}}">{{'%02d:30' % h}}</option>
                 {% endfor %}
             </select>
-        </label>
-
-        <label>退勤時間:
+        </label><br>
+        
+        <label>勤務終了時刻:
             <select name="end_time" required>
-                {% for h in range(6, 24) %}
-                    <option value="{{ "%02d:00"|format(h) }}">{{ "%02d:00"|format(h) }}</option>
-                    <option value="{{ "%02d:30"|format(h) }}">{{ "%02d:30"|format(h) }}</option>
+                {% for h in range(8, 23) %}
+                  <option value="{{'%02d:00' % h}}">{{'%02d:00' % h}}</option>
+                  <option value="{{'%02d:30' % h}}">{{'%02d:30' % h}}</option>
                 {% endfor %}
             </select>
-        </label>
-
-        <br><br>
-        <button type="submit">提出</button>
+        </label><br>
+        
+        <button type="submit">送信</button>
     </form>
+
 </body>
 </html>

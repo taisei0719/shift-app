@@ -9,42 +9,51 @@
 <body>
     <h1>{{ date }} のシフト一覧</h1>
 
-    <div id="shift-graph" style="width:100%; height:600px;"></div>
+    <div id="shift_graph" style="width:100%; height:600px;"></div>
 
     <script>
-        var data = [];
-        {% for name, times in schedule.items() %}
-            {% for t in times %}
-                // 開始時間
-                var start = t;
-                var h = parseInt(t.split(':')[0]);
-                var m = parseInt(t.split(':')[1]);
+    var data = [];
 
-                // 30分後を終了時間に設定
-                var end_h = h;
-                var end_m = m + 30;
-                if (end_m == 60) { end_m = 0; end_h += 1; }
-                var end = ("0"+end_h).slice(-2) + ":" + ("0"+end_m).slice(-2);
+    {% for name, shifts in schedule.items() %}
+      {% for s in shifts %}
+        {% set start = s.split('-')[0] %}
+        {% set end = s.split('-')[1] %}
+        // ダミー日付をつけてISO形式にする（Plotlyはtime scaleに日付が必要）
+        var startISO = "{{ date }}T{{ start }}";
+        var endISO   = "{{ date }}T{{ end }}";
 
-                data.push({
-                    x: [start, end],
-                    y: ["{{ name }}", "{{ name }}"],
-                    mode: "lines",
-                    line: { width: 20 },
-                    showlegend: false
-                });
-            {% endfor %}
-        {% endfor %}
+        data.push({
+          type: 'bar',
+          x: [new Date(endISO) - new Date(startISO)], // 棒の長さ（ミリ秒差）
+          y: ["{{ name }}"],
+          base: new Date(startISO), // 棒の開始位置
+          orientation: 'h',
+          name: "{{ name }}",
+          width: 0.1,  //シフトの棒の太さ
+          hovertext: "{{ start }} - {{ end }}",
+          hoverinfo: "text"
+        });
+      {% endfor %}
+    {% endfor %}
 
-        var layout = {
-            title: '{{ date }} のシフト提出',
-            xaxis: { title: '時間', type: 'category' },
-            yaxis: { title: 'スタッフ' },
-            margin: { l: 150 },
-            height: 600
-        };
+    var layout = {
+      barmode: 'stack',
+      title: "{{ date }} のシフト希望",
+      xaxis: {
+        title: '時間',
+        type: 'date',
+        tickformat: "%H:%M"  // 時間だけ表示
+      },
+      yaxis: {
+        title: 'スタッフ',
+        automargin: true
+      },
+      bargap: 0.4,       // 棒同士の間隔（0〜1で設定、数値を大きくすると細くなる）
+      bargroupgap: 0.2,  // グループ間の間隔
+      margin: {l: 100}
+    };
 
-        Plotly.newPlot('shift-graph', data, layout);
+    Plotly.newPlot('shift_graph', data, layout);
     </script>
 
     <a href="{{ url_for('admin') }}">カレンダーに戻る</a>
