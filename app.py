@@ -23,7 +23,8 @@ db = SQLAlchemy(app)
 # -------------------- モデル定義 --------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
+    name = db.Column(db.String(80), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False)  # admin or staff
     password = db.Column(db.String(200), nullable=False)
     shop_id = db.Column(db.Integer, db.ForeignKey('shop.id'), nullable=True)
@@ -50,12 +51,12 @@ def init_db():
     db.create_all()
     # テストユーザー追加
     if not User.query.filter_by(name='admin').first():
-        admin = User(name='admin', role='admin', password=generate_password_hash('pass'))
+        admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
         db.session.add(admin)
     if not User.query.filter_by(name='yamada').first():
-        staff1 = User(name='yamada', role='staff', password=generate_password_hash('pass'))
-        staff2 = User(name='sato', role='staff', password=generate_password_hash('pass'))
-        staff3 = User(name='suzuki', role='staff', password=generate_password_hash('pass'))
+        staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
+        staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
+        staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
         db.session.add_all([staff1, staff2, staff3])
     db.session.commit()
     
@@ -76,17 +77,31 @@ def logout():
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        name = request.form["name"]
+        identifier = request.form.get("identifier")
         password = request.form["password"]
-        user = User.query.filter_by(name=name).first()
+        
+        # 名前またはメールアドレスで検索
+        user = User.query.filter(
+            (User.name == identifier) | (User.email == identifier)
+        ).first()
+        
         if user and check_password_hash(user.password, password):
             session["user_id"] = user.id
             session["role"] = user.role
             session["user_name"] = user.name
+
+            # 所属店舗名をセッションに保存（あれば）
+            if user.shop_id:
+                shop = Shop.query.get(user.shop_id)
+                session["shop_name"] = shop.name if shop else "未所属"
+            else:
+                session["shop_name"] = "未所属"
+
             if user.role == "admin":
                 return redirect(url_for("admin"))
             else:
                 return redirect(url_for("staff"))
+            
         flash("ユーザー名かパスワードが違います")
     return render_template("login.html")
 
@@ -95,17 +110,19 @@ def login():
 def register():
     if request.method == "POST":
         name = request.form["name"]
+        email = request.form["email"]
         password = request.form["password"]
         role = request.form["role"]  
 
         # 同じ名前のユーザーがいないか確認
-        if User.query.filter_by(name=name).first():
-            flash("その名前はすでに使われています")
+        if User.query.filter_by(email=email).first():
+            flash("そのメールアドレスはすでに使われています")
             return redirect(url_for("register"))
 
         # ハッシュ化して保存
         new_user = User(
             name=name,
+            email=email,
             password=generate_password_hash(password),
             role=role
         )
