@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>管理者画面</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% extends "index.html" %}
+
+{% block title %}管理者画面{% endblock %}
+
+{% block content %}
     <h1>{{ year }}年 {{ month }}月</h1>
     
     <div style="display:flex; justify-content: space-between; margin: 10px 0;">
@@ -25,13 +22,10 @@
                     {% if day.month == month %}
                         <a href="{{ url_for('admin_day', date=day.strftime('%Y-%m-%d')) }}">詳細</a>
                     {% else %}
-                        <!-- 当月以外はリンクなし -->
                         <span style="color: gray;">詳細</span>
                     {% endif %}
                 </td>
             {% endfor %}
         </tr>
     </table>
-
-</body>
-</html>
+{% endblock %}

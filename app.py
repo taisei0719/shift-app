@@ -58,6 +58,13 @@ def add_test_users():
     conn.commit()
     conn.close()
 
+# -------------------- ログアウト --------------------
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()  # セッションを全削除
+    return redirect(url_for("login"))
+
+
 # -------------------- ログイン --------------------
 @app.route("/", methods=["GET", "POST"])
 def login():

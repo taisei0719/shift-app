@@ -1,17 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <title>シフト管理</title>
+    <meta charset="UTF-8">
+    <title>{% block title %}シフト管理システム{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_extra %}{% endblock %}
 </head>
 <body>
-  <h1>シフト管理アプリ</h1>
-  <!-- リセットボタン -->
-  <form action="{{ url_for('reset_db') }}" method="post" onsubmit="return confirm('本当にリセットしますか？');">
-      <button type="submit" style="background-color:red;color:white;">リセット</button>
-  </form>
-  <ul>
-    <li><a href="{{ url_for('input_shift') }}">希望シフト入力</a></li>
-    <li><a href="{{ url_for('show_shifts') }}">シフト表を見る</a></li>
-  </ul>
+    <!-- 共通ヘッダー -->
+    <div style="display:flex; justify-content: space-between; align-items: center; padding: 10px;">
+        <h2 style="margin:0;">シフト管理システム</h2>
+        {% if session.get("user_id") %}
+            <form action="{{ url_for('logout') }}" method="post" style="margin:0;">
+                <button type="submit" style="
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 8px 12px;
+                    border-radius: 5px;
+                    cursor: pointer;">
+                    ログアウト
+                </button>
+            </form>
+        {% endif %}
+    </div>
+    <hr>
+
+    <!-- 各ページごとの内容 -->
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
 </body>
 </html>
+
+
