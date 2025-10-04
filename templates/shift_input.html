@@ -1,11 +1,8 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>シフト提出</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+{% extends "index.html" %}
+
+{% block title %}シフト提出{% endblock %}
+
+{% block content %}
     <h1>シフト提出</h1>
     <form method="post">
         <label>日付: <input type="date" name="date" required></label><br>
@@ -30,6 +27,4 @@
         
         <button type="submit">送信</button>
     </form>
-
-</body>
-</html>
+{% endblock %}

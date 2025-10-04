@@ -5,9 +5,21 @@
 {% block content %}
 <h1>ログイン</h1>
 <form method="post">
-  名前: <input type="text" name="name"><br>
-  パスワード: <input type="password" name="password"><br>
+  <label>名前:<br><input type="text" name="name" required></label><br>
+  <label>パスワード:<br><input type="password" name="password" required></label><br>
   <button type="submit">ログイン</button>
 </form>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul style="color:red;">
+      {% for message in messages %}
+        <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<p>まだアカウントをお持ちでない方は <a href="{{ url_for('register') }}">ユーザー登録</a></p>
 {% endblock %}
 

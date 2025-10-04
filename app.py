@@ -1,69 +1,60 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 app.secret_key = "secret_key"
-DB = "shifts.db"
 
+
+# -------------------- データベース設定 --------------------
+# 開発時 SQLite
+DB_URI = "sqlite:///shifts.db"
+# 本番用例（PostgreSQL）
+# DB_URI = "postgresql://user:password@localhost/shifts"
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DB_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# -------------------- モデル定義 --------------------
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # admin or staff
+    password = db.Column(db.String(200), nullable=False)
+
+class ShiftRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    shifts = db.relationship('Shift', backref='request', cascade="all, delete-orphan")
+
+class Shift(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    shift_request_id = db.Column(db.Integer, db.ForeignKey('shift_request.id'), nullable=False)
+    time_slot = db.Column(db.String(20), nullable=False)
+    
+# -------------------- DB 初期化 --------------------
 def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    # usersテーブル
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            role TEXT,
-            password TEXT
-        )
-    ''')
-    # shift_requestsテーブル（日付単位）
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS shift_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    ''')
-    # shiftsテーブル（時間帯）
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS shifts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            shift_request_id INTEGER NOT NULL,
-            time_slot TEXT NOT NULL,
-            FOREIGN KEY(shift_request_id) REFERENCES shift_requests(id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-# -------------------- DB接続 --------------------
-def get_db():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# -------------------- テストユーザー追加 --------------------
-def add_test_users():
-    conn = get_db()
-    c = conn.cursor()
-    # 管理者アカウント
-    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (1,'admin','admin','pass')")
-    # スタッフアカウント（テスト用）
-    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (2,'yamada','staff','pass')")
-    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (3,'sato','staff','pass')")
-    c.execute("INSERT OR IGNORE INTO users (id, name, role, password) VALUES (4,'suzuki','staff','pass')")
-    conn.commit()
-    conn.close()
+    db.create_all()
+    # テストユーザー追加
+    if not User.query.filter_by(name='admin').first():
+        admin = User(name='admin', role='admin', password=generate_password_hash('pass'))
+        db.session.add(admin)
+    if not User.query.filter_by(name='yamada').first():
+        staff1 = User(name='yamada', role='staff', password=generate_password_hash('pass'))
+        staff2 = User(name='sato', role='staff', password=generate_password_hash('pass'))
+        staff3 = User(name='suzuki', role='staff', password=generate_password_hash('pass'))
+        db.session.add_all([staff1, staff2, staff3])
+    db.session.commit()
 
 # -------------------- ログアウト --------------------
 @app.route("/logout", methods=["POST"])
 def logout():
-    session.clear()  # セッションを全削除
+    session.clear()
     return redirect(url_for("login"))
-
 
 # -------------------- ログイン --------------------
 @app.route("/", methods=["GET", "POST"])
@@ -71,19 +62,42 @@ def login():
     if request.method == "POST":
         name = request.form["name"]
         password = request.form["password"]
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE name=? AND password=?", (name,password))
-        user = c.fetchone()
-        conn.close()
-        if user:
-            session["user_id"] = user["id"]
-            session["role"] = user["role"]
-            if user["role"] == "admin":
+        user = User.query.filter_by(name=name).first()
+        if user and check_password_hash(user.password, password):
+            session["user_id"] = user.id
+            session["role"] = user.role
+            if user.role == "admin":
                 return redirect(url_for("admin"))
             else:
                 return redirect(url_for("staff"))
+        flash("ユーザー名かパスワードが違います")
     return render_template("login.html")
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        name = request.form["name"]
+        password = request.form["password"]
+        role = request.form["role"]  
+
+        # 同じ名前のユーザーがいないか確認
+        if User.query.filter_by(name=name).first():
+            flash("その名前はすでに使われています")
+            return redirect(url_for("register"))
+
+        # ハッシュ化して保存
+        new_user = User(
+            name=name,
+            password=generate_password_hash(password),
+            role=role
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash("登録完了しました。ログインしてください")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
+
 
 # -------------------- 管理者トップ（カレンダー表示） --------------------
 @app.route("/admin")
@@ -125,33 +139,33 @@ def admin(year=None, month=None):
     )
 
 
-# -------------------- 日付別のシフト確認 --------------------
+# -------------------- 日付別のシフト確認（SQLAlchemy版） --------------------
 @app.route("/admin/shift_day/<date>")
 def admin_day(date):
     if session.get("role") != "admin":
         return "アクセス権限がありません"
 
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("""
-        SELECT u.name, s.time_slot
-        FROM shift_requests sr
-        JOIN users u ON sr.user_id = u.id
-        JOIN shifts s ON sr.id = s.shift_request_id
-        WHERE sr.date=?
-        ORDER BY u.name, s.time_slot
-    """, (date,))
-    rows = c.fetchall()
-    conn.close()
+    # ShiftRequest と Shift を結合して取得
+    shift_requests = (
+        ShiftRequest.query
+        .filter_by(date=date)
+        .join(User)
+        .join(Shift)
+        .add_entity(User)
+        .add_entity(Shift)
+        .order_by(User.name, Shift.time_slot)
+        .all()
+    )
 
     schedule = {}
-    for row in rows:
-        if row["name"] not in schedule:
-            schedule[row["name"]] = []
-        schedule[row["name"]].append(row["time_slot"])
+    for sr, user, shift in shift_requests:
+        if user.name not in schedule:
+            schedule[user.name] = []
+        schedule[user.name].append(shift.time_slot)
 
     # シフトがゼロ件でも schedule を渡す
     return render_template("admin_day.html", date=date, schedule=schedule)
+
 
 
 
@@ -168,32 +182,28 @@ def shift_input():
     if session.get("role") != "staff":
         return "アクセス権限がありません"
 
-    if request.method=="POST":
+    if request.method == "POST":
         user_id = session["user_id"]
         date = request.form["date"]
         start_time = request.form["start_time"]
         end_time = request.form["end_time"]
-
-        conn = get_db()
-        c = conn.cursor()
-
-        # 日付単位で shift_requests に登録
-        c.execute("INSERT INTO shift_requests (user_id, date) VALUES (?, ?)", (user_id, date))
-        shift_request_id = c.lastrowid
-
-        # 1レコードだけ保存（開始時刻と終了時刻）
-        c.execute(
-            "INSERT INTO shifts (shift_request_id, time_slot) VALUES (?, ?)",
-            (shift_request_id, f"{start_time}-{end_time}")
-        )
-
-        conn.commit()
-        conn.close()
+        
+        # ShiftRequest レコードを作成
+        shift_request = ShiftRequest(user_id=user_id, date=date)
+        db.session.add(shift_request)
+        db.session.commit()  # ID を取得するために commit
+        
+        # Shift レコードを作成
+        shift = Shift(shift_request_id=shift_request.id, time_slot=f"{start_time}-{end_time}")
+        db.session.add(shift)
+        db.session.commit()
+        
+        flash("シフトを提出しました")
         return redirect(url_for("staff"))
 
     return render_template("shift_input.html")
 
 if __name__ == "__main__":
-    init_db()
-    add_test_users()
+    with app.app_context():
+        init_db()
     app.run(debug=True)

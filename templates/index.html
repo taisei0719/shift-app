@@ -7,30 +7,43 @@
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <!-- 共通ヘッダー -->
-    <div style="display:flex; justify-content: space-between; align-items: center; padding: 10px;">
-        <h2 style="margin:0;">シフト管理システム</h2>
+
+    <!-- 左サイドバー -->
+    <div class="sidebar">
         {% if session.get("user_id") %}
-            <form action="{{ url_for('logout') }}" method="post" style="margin:0;">
-                <button type="submit" style="
-                    background-color: #f44336;
-                    color: white;
-                    border: none;
-                    padding: 8px 12px;
-                    border-radius: 5px;
-                    cursor: pointer;">
-                    ログアウト
-                </button>
+            <div class="user-info">
+                <p><strong>ログイン中:</strong></p>
+                <p>{{ session.get("user_name") }}</p>
+                <p>役割: {{ session.get("role") }}</p>
+            </div>
+
+            <div class="nav-links">
+                {% if session.get("role") == "admin" %}
+                    <a href="{{ url_for('admin') }}">カレンダー</a>
+                    <a href="{{ url_for('admin_day', date=datetime.today().strftime('%Y-%m-%d')) }}">シフト確認</a>
+                {% else %}
+                    <a href="{{ url_for('staff') }}">スタッフトップ</a>
+                    <a href="{{ url_for('shift_input') }}">シフト提出</a>
+                {% endif %}
+            </div>
+
+            <form action="{{ url_for('logout') }}" method="post" style="margin-top: 20px;">
+                <button type="submit" class="logout-btn">ログアウト</button>
             </form>
+        {% else %}
+            <p>未ログイン</p>
+            <a href="{{ url_for('login') }}">ログイン</a>
         {% endif %}
     </div>
-    <hr>
 
-    <!-- 各ページごとの内容 -->
-    <div class="content">
+    <!-- 右メインコンテンツ -->
+    <div class="main-content">
+        <div class="header">{% block page_header %}{% endblock %}</div>
         {% block content %}{% endblock %}
     </div>
+
 </body>
 </html>
+
 
 
