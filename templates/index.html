@@ -21,6 +21,7 @@
                 {% if session.get("role") == "admin" %}
                     <a href="{{ url_for('admin') }}">カレンダー</a>
                     <a href="{{ url_for('admin_day', date=datetime.today().strftime('%Y-%m-%d')) }}">シフト確認</a>
+                    <a href="{{ url_for('shop_register') }}">店舗登録</a>
                 {% else %}
                     <a href="{{ url_for('staff') }}">スタッフトップ</a>
                     <a href="{{ url_for('shift_input') }}">シフト提出</a>

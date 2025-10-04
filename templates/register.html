@@ -16,6 +16,20 @@
     <button type="submit">登録</button>
 </form>
 
-<p>すでにアカウントをお持ちですか？ <a href="{{ url_for('login') }}">ログイン</a></p>
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul style="color:red;">
+      {% for message in messages %}
+        <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<div class="center-message">
+        すでにアカウントをお持ちですか？ 
+        <a href="{{ url_for('login') }}">ログイン</a>
+    </div>
+
 {% endblock %}
 

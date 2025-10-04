@@ -6,6 +6,7 @@ body {
     padding: 0;
     display: flex;
     min-height: 100vh;
+    flex-direction: row; /* サイドバー＋メイン */
 }
 
 /* サイドバー（ログイン中ユーザー情報表示用） */
@@ -45,6 +46,9 @@ body {
 .main-content {
     flex: 1;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* 中央寄せ */
 }
 
 /* 共通ヘッダー */
@@ -55,13 +59,15 @@ body {
     text-align: center;
     background-color: #150570;
     color: white;
+    width: 100%;
     margin-bottom: 20px;
 }
 
 /* フォーム */
 form {
+    width: 100%;
     max-width: 400px;
-    margin: 20px auto;
+    margin: 20px 0;
     padding: 20px;
     background-color: white;
     border-radius: 8px;
@@ -84,14 +90,15 @@ button {
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    transition: background-color 0.3s ease;
 }
 
 button:hover {
-    background-color: #150570;
+    background-color: #0f0450;
 }
 
-/* リンク */
-a {
+/* リンク（フォーム内専用） */
+form a {
     display: block;
     text-align: center;
     margin-top: 15px;
@@ -99,7 +106,7 @@ a {
     text-decoration: none;
 }
 
-a:hover {
+form a:hover {
     text-decoration: underline;
 }
 
@@ -144,5 +151,23 @@ tr:hover td {
     text-align: center;
     margin: 10px auto;
     max-width: 400px;
+    width: 90%;
 }
 
+/* レスポンシブ調整 */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-around;
+    }
+
+    .main-content {
+        align-items: stretch;
+        padding: 10px;
+    }
+}
