@@ -1,0 +1,27 @@
+{% extends "index.html" %}
+
+{% block title %}店舗情報{% endblock %}
+
+{% block content %}
+<div class="shop-detail-container">
+    <h1>店舗情報確認・編集</h1>
+
+    <form method="post">
+        <label>店舗名:<br>
+            <input type="text" name="name" value="{{ shop.name }}" required>
+        </label><br>
+
+        <label>所在地:<br>
+            <input type="text" name="location" value="{{ shop.location }}">
+        </label><br>
+
+        <label>店舗コード:<br>
+            <input type="text" value="{{ shop.shop_code }}" readonly>
+        </label><br>
+
+        <button type="submit">更新</button>
+    </form>
+
+    <a href="{{ url_for('admin') }}">カレンダーに戻る</a>
+</div>
+{% endblock %}

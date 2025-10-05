@@ -3,6 +3,9 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
+import random
+import string
+
 
 app = Flask(__name__)
 app.secret_key = "secret_key"
@@ -151,6 +154,11 @@ def shop_register():
         shop = Shop(name=name, location=location, shop_code=shop_code)
         db.session.add(shop)
         db.session.commit()
+        
+        admin_user = User.query.get(session["user_id"])
+        admin_user.shop_id = shop.id
+        db.session.commit()
+        
         flash(f"店舗登録が完了しました。店舗ID: {shop_code}")
         return redirect(url_for("shop_register"))
 
@@ -177,6 +185,52 @@ def staff_shop_register():
 
     return render_template("staff_shop_register.html")
 
+# -------------------- アカウント編集 --------------------
+@app.route("/edit_account", methods=["GET", "POST"])
+def edit_account():
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("ログインが必要です")
+        return redirect(url_for("login"))
+
+    user = User.query.get(user_id)
+
+    if request.method == "POST":
+        new_name = request.form.get("name")
+        new_email = request.form.get("email")
+        new_password = request.form.get("password")
+
+        if new_name:
+            user.name = new_name
+        if new_email:
+            user.email = new_email
+        if new_password:
+            user.password = generate_password_hash(new_password)
+
+        db.session.commit()
+        flash("アカウント情報を更新しました")
+        return redirect(url_for("staff") if user.role == "staff" else url_for("admin"))
+
+    return render_template("edit_account.html", user=user)
+
+# -------------------- 店舗情報 --------------------
+@app.route("/admin/shop/<int:shop_id>", methods=["GET", "POST"])
+def shop_detail(shop_id):
+    if session.get("role") != "admin":
+        return "アクセス権限がありません"
+
+    shop = Shop.query.get_or_404(shop_id)
+
+    if request.method == "POST":
+        # 編集内容を反映
+        shop.id = request.form["id"]
+        shop.name = request.form["name"]
+        shop.location = request.form["location"]
+        db.session.commit()
+        flash("店舗情報を更新しました")
+        return redirect(url_for("shop_detail", shop_id=shop.id))
+
+    return render_template("shop_detail.html", shop=shop)
 
 # -------------------- 管理者トップ（カレンダー表示） --------------------
 @app.route("/admin")
@@ -187,6 +241,9 @@ def admin(year=None, month=None):
 
     import calendar
     today = datetime.today()
+    
+    user = User.query.get(session["user_id"])
+    shop = Shop.query.get(user.shop_id) if user and user.shop_id else None
 
     # URLで指定なければ今月を表示
     if year is None or month is None:
@@ -214,7 +271,8 @@ def admin(year=None, month=None):
         prev_year=prev_year,
         prev_month=prev_month,
         next_year=next_year,
-        next_month=next_month
+        next_month=next_month,
+        shop=shop
     )
 
 
