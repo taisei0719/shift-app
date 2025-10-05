@@ -282,11 +282,19 @@ def admin_day(date):
     if session.get("role") != "admin":
         return "アクセス権限がありません"
 
-    # ShiftRequest と Shift を結合して取得
+    admin_user = User.query.get(session["user_id"])
+    if not admin_user or not admin_user.shop_id:
+        flash("所属店舗が設定されていません")
+        return redirect(url_for("admin"))
+
+    # 管理者の店舗IDでスタッフをフィルタ
+    shop_id = admin_user.shop_id
+
     shift_requests = (
         ShiftRequest.query
         .filter_by(date=date)
         .join(User)
+        .filter(User.shop_id == shop_id)
         .join(Shift)
         .add_entity(User)
         .add_entity(Shift)
@@ -300,8 +308,11 @@ def admin_day(date):
             schedule[user.name] = []
         schedule[user.name].append(shift.time_slot)
 
-    # シフトがゼロ件でも schedule を渡す
-    return render_template("admin_day.html", date=date, schedule=schedule)
+    # テンプレートに shop を渡す（jinja2 の UndefinedError 対策にもなる）
+    shop = Shop.query.get(shop_id)
+
+    return render_template("admin_day.html", date=date, schedule=schedule, shop=shop)
+
 
 
 
@@ -339,6 +350,16 @@ def shift_input():
         return redirect(url_for("staff"))
 
     return render_template("shift_input.html")
+
+@app.context_processor
+def inject_shop():
+    user_id = session.get("user_id")
+    if not user_id:
+        return {}
+    user = User.query.get(user_id)
+    shop = Shop.query.get(user.shop_id) if user and user.shop_id else None
+    return dict(shop=shop)
+
 
 if __name__ == "__main__":
     with app.app_context():
