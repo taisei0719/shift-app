@@ -166,6 +166,19 @@ def get_shifts(date):
 
     return jsonify(schedule)
 
+@app.route("/api/session")
+def get_session():
+    if "user_id" in session:
+        return jsonify({
+            "user": {
+                "user_name": session.get("user_name"),
+                "role": session.get("role"),
+                "shop_name": session.get("shop_name")
+            }
+        })
+    return jsonify({"user": None})
+
+
 if __name__ == "__main__":
     with app.app_context():
         init_db()

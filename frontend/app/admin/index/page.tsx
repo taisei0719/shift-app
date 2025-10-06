@@ -1,7 +1,7 @@
 // frontend/pages/admin/index.js
 import React from "react";
 import Link from "next/link";
-import Layout from "../../components/Layout";
+import Layout from "../../../components/Layout";
 
 export default function AdminCalendar({ year, month, prevYear, prevMonth, nextYear, nextMonth, days, user, shop }) {
   return (
