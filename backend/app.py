@@ -12,8 +12,14 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 # 本番フロントのみ許可
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-CORS(app, origins=[FRONTEND_URL], supports_credentials=True)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") # 本番時は.envファイルでFRONTEND_URLを変更
+CORS(
+    app,
+    origins=[FRONTEND_URL],
+    supports_credentials=True,
+    methods=["GET", "POST", "OPTIONS"],  # 必要なメソッドを指定
+    allow_headers=["Content-Type", "Authorization"]
+)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -27,6 +33,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)
     password = db.Column(db.String(200), nullable=False)
     shop_id = db.Column(db.Integer, db.ForeignKey('shop.id'), nullable=True)
+    shop = db.relationship("Shop", backref="users", uselist=False)
 
 class ShiftRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -48,6 +55,15 @@ class Shop(db.Model):
 # -------------------- DB初期化 --------------------
 def init_db():
     db.create_all()
+    if not User.query.filter_by(name='admin').first():
+        admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
+        db.session.add(admin)
+    if not User.query.filter_by(name='yamada').first():
+        staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
+        staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
+        staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
+        db.session.add_all([staff1, staff2, staff3])
+    db.session.commit()
 
 
 # -------------------- ユーティリティ --------------------
@@ -87,10 +103,17 @@ def login():
     password = data.get("password")
 
     user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
+    print("login data:", request.json)
     if user and check_password_hash(user.password, password):
         session["user_id"] = user.id
+        session["user_name"] = user.name
         session["role"] = user.role
-        return jsonify({"message": "ログイン成功", "user_id": user.id, "role": user.role})
+        session["shop_name"] = user.shop.name if user.shop else None
+        return jsonify({"message": "ログイン成功", "user": {
+            "user_name": user.name,
+            "role": user.role,
+            "shop_name": user.shop.name if user.shop else None
+        }})
     return jsonify({"error": "ユーザー名かパスワードが違います"}), 401
 
 # -------------------- API: ログアウト --------------------
@@ -166,6 +189,7 @@ def get_shifts(date):
 
     return jsonify(schedule)
 
+# -------------------- API: セッション取得 --------------------
 @app.route("/api/session")
 def get_session():
     if "user_id" in session:
@@ -177,6 +201,7 @@ def get_session():
             }
         })
     return jsonify({"user": None})
+
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
-// frontend/pages/admin/day/[date].js
+"use client";
+
 import React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import Layout from "../../../components/Layout";
+
 
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 

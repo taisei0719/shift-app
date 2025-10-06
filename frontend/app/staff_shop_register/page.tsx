@@ -1,7 +1,7 @@
-// frontend/pages/staff_shop_register.js
+"use client";
+
 import React, { useState } from "react";
-import { api } from "../lib/axios";
-import Layout from "../components/Layout";
+import { api } from "../../lib/api";
 
 export default function StaffShopRegister({ user }) {
   const [shopCode, setShopCode] = useState("");

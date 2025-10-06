@@ -1,8 +1,8 @@
-// frontend/pages/shop/[shopId].js
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import { api } from "../../lib/axios";
-import Layout from "../../components/Layout";
+import { useRouter } from "next/navigation";
+import { api } from "../../../lib/api";
 
 export default function ShopDetail({ user }) {
   const router = useRouter();

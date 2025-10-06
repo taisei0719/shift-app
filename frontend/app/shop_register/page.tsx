@@ -1,7 +1,7 @@
-// frontend/pages/shop_register.js
+"use client";
+
 import React, { useState } from "react";
-import { api } from "../lib/axios";
-import Layout from "../components/Layout";
+import { api } from "../../lib/api";
 
 export default function ShopRegister({ user }) {
   const [name, setName] = useState("");
@@ -19,7 +19,7 @@ export default function ShopRegister({ user }) {
   };
 
   return (
-    <Layout user={user}>
+    <>
       <h1>店舗登録</h1>
       {message && <p style={{ color: message.includes("成功") ? "green" : "red" }}>{message}</p>}
       <form onSubmit={handleSubmit}>
@@ -35,6 +35,6 @@ export default function ShopRegister({ user }) {
         <br />
         <button type="submit">登録</button>
       </form>
-    </Layout>
+    </>
   );
 }

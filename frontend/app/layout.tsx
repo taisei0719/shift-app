@@ -32,7 +32,7 @@ export default function RootLayout({
 
   const handleLogout = async () => {
     await axios.post("http://localhost:5000/api/logout", {}, { withCredentials: true });
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (
@@ -58,7 +58,7 @@ export default function RootLayout({
                   <>
                     <Link href="/admin">カレンダー</Link>
                     <Link href="/admin/day/today">シフト確認</Link>
-                    <Link href="/shop/register">店舗登録</Link>
+                    <Link href="/shop_register">店舗登録</Link>
                     <Link href="/account/edit">アカウント</Link>
                     {/* 店舗詳細は動的リンク */}
                     <Link href="/shop/detail">店舗詳細</Link>
@@ -66,12 +66,31 @@ export default function RootLayout({
                 ) : (
                   <>
                     <Link href="/staff">スタッフトップ</Link>
-                    <Link href="/shift/input">シフト提出</Link>
-                    <Link href="/staff/shop_register">店舗登録</Link>
-                    <Link href="/account/edit">アカウント</Link>
-                    <Link href="/shop/detail">店舗詳細</Link>
+                    <Link href="/shift_input">シフト提出</Link>
+                    <Link href="/shop_register">店舗登録</Link>
+                    <Link href="/edit_account">アカウント</Link>
+                    <Link href="/shop/[shopId]">店舗詳細</Link>
                   </>
                 )}
               </div>
 
-              <button onClick={handleLogout} classNam
+              <button onClick={handleLogout} className="logout-btn">
+                ログアウト
+              </button>
+            </>
+          ) : (
+            <div className="not-logged-in">
+              <p>未ログイン</p>
+              {pathname !== "/" && <Link href="/">ログイン</Link>}
+            </div>
+          )}
+        </div>
+
+        <div className="main-content">
+          <div className="header">シフト管理システム</div>
+          {children}
+        </div>
+      </body>
+    </html>
+  );
+}

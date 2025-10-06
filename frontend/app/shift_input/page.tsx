@@ -1,7 +1,7 @@
-// frontend/pages/shift_input.js
+"use client";
+
 import React, { useState } from "react";
-import { api } from "../lib/axios";
-import Layout from "../components/Layout";
+import { api } from "../../lib/api";
 
 export default function ShiftInput({ user }) {
   const [date, setDate] = useState("");
@@ -22,7 +22,7 @@ export default function ShiftInput({ user }) {
   };
 
   return (
-    <Layout user={user}>
+    <>
       <h1>シフト提出</h1>
       {message && <p style={{ color: "green" }}>{message}</p>}
       <form onSubmit={handleSubmit}>
@@ -56,6 +56,6 @@ export default function ShiftInput({ user }) {
         <br />
         <button type="submit">送信</button>
       </form>
-    </Layout>
+    </>
   );
 }

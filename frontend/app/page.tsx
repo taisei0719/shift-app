@@ -1,7 +1,8 @@
-// frontend/pages/login.js
+"use client";
+
 import React, { useState } from "react";
-import { useRouter } from "next/router";
-import { api } from "/lib/axios";
+import { useRouter } from "next/navigation";
+import { api } from "../lib/api";
 
 export default function Login() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function Login() {
     e.preventDefault();
     try {
       const res = await api.post("/login", { identifier, password });
-      router.push(res.data.role === "staff" ? "/staff" : "/admin");
+      router.push(res.data.user.role === "staff" ? "/staff" : "/admin");
     } catch (err) {
       setError(err.response?.data?.error || "ログインに失敗しました");
     }

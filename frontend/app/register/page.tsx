@@ -1,7 +1,9 @@
-// frontend/pages/register.js
+"use client";
+
 import React, { useState } from "react";
-import { useRouter } from "next/router";
-import { api } from "../lib/axios";
+import { useRouter } from "next/navigation";
+import { api } from "../../lib/api";
+
 
 export default function Register() {
   const router = useRouter();
@@ -49,7 +51,7 @@ export default function Register() {
         <button type="submit">登録</button>
       </form>
       <div className="center-message">
-        すでにアカウントをお持ちですか？ <a href="/login">ログイン</a>
+        すでにアカウントをお持ちですか？ <a href="/">ログイン</a>
       </div>
     </div>
   );
