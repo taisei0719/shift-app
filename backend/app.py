@@ -1,15 +1,21 @@
+import os
 from flask import Flask, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import random, string
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "secret_key"
-CORS(app, supports_credentials=True)
+app.secret_key = os.getenv("SECRET_KEY")
+# 本番フロントのみ許可
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+CORS(app, origins=[FRONTEND_URL], supports_credentials=True)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///shifts.db"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -42,7 +48,7 @@ class Shop(db.Model):
 # -------------------- DB初期化 --------------------
 def init_db():
     db.create_all()
-init_db()
+
 
 # -------------------- ユーティリティ --------------------
 def generate_shop_code():
@@ -161,5 +167,7 @@ def get_shifts(date):
     return jsonify(schedule)
 
 if __name__ == "__main__":
+    with app.app_context():
+        init_db()
     app.run(debug=True)
 
