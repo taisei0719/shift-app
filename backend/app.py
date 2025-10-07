@@ -103,7 +103,7 @@ def login():
     password = data.get("password")
 
     user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
-    print("login data:", request.json)
+    # print("login data:", request.json) # debaug
     if user and check_password_hash(user.password, password):
         session["user_id"] = user.id
         session["user_name"] = user.name

@@ -1,19 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { api } from "../../lib/api"; // axios のインスタンス
+import { useState } from "react";
+import { useUser } from "../context/UserContext";
+import { api } from "../../lib/api";
 
-interface User {
-  name: string;
-  email?: string;
-  role: "admin" | "staff";
-}
-
-export default function EditAccount({ user }: { user: User }) {
-  const router = useRouter();
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email || "");
+export default function EditAccount() {
+  const { user, refreshUser } = useUser();
+  const [name, setName] = useState(user?.user_name || "");
+  const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
@@ -21,65 +15,39 @@ export default function EditAccount({ user }: { user: User }) {
     e.preventDefault();
     try {
       await api.post("/account/edit", { name, email, password });
-      setMessage("アカウント情報を更新しました");
-      // 更新後、元のページに戻る
-      setTimeout(() => {
-        router.push(user.role === "staff" ? "/staff" : "/admin");
-      }, 1500);
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "更新に失敗しました");
+      setMessage("更新しました");
+      await refreshUser();
+    } catch {
+      setMessage("更新に失敗しました");
     }
   };
 
+  if (!user) return <p>ユーザー情報を取得中...</p>;
+
   return (
-    <div className="edit-account-container">
+    <div>
       <h1>アカウント情報の編集</h1>
-
-      {message && <p style={{ color: "green" }}>{message}</p>}
-
+      {message && <p>{message}</p>}
       <form onSubmit={handleSubmit}>
         <label>
-          名前:<br />
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          名前:
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <br />
-
         <label>
-          メールアドレス:<br />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          メール:
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <br />
-
         <label>
-          新しいパスワード（変更しない場合は空欄）:<br />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          新しいパスワード:
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <br />
-
         <button type="submit">更新</button>
       </form>
-
-      <div className="center-message">
-        <button
-          onClick={() => router.push(user.role === "staff" ? "/staff" : "/admin")}
-          className="link-button"
-        >
-          戻る
-        </button>
-      </div>
     </div>
   );
 }
+
+

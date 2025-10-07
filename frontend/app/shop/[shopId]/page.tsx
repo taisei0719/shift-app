@@ -1,12 +1,17 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
 
-export default function ShopDetail({ user }) {
-  const router = useRouter();
-  const { shopId } = router.query;
+interface ShopDetailProps {
+  params: {
+    shopId: string;
+  };
+  user: any;
+}
+
+export default function ShopDetail({ params, user }: ShopDetailProps) {
+  const { shopId } = params;
   const [shop, setShop] = useState({ name: "", location: "", shop_code: "" });
   const [message, setMessage] = useState("");
 
@@ -27,7 +32,7 @@ export default function ShopDetail({ user }) {
   };
 
   return (
-    <Layout user={user}>
+    <>
       <div className="shop-detail-container">
         <h1>店舗情報確認・編集</h1>
         {message && <p style={{ color: "green" }}>{message}</p>}
@@ -51,6 +56,6 @@ export default function ShopDetail({ user }) {
         </form>
         <button onClick={() => router.push("/admin")}>カレンダーに戻る</button>
       </div>
-    </Layout>
+    </>
   );
 }

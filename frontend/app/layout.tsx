@@ -3,32 +3,12 @@
 import "./globals.css";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useUser, UserProvider } from "./context/UserContext";
 import axios from "axios";
 
-interface UserInfo {
-  user_name: string;
-  role: "admin" | "staff";
-  shop_name?: string;
-}
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [user, setUser] = useState<UserInfo | null>(null);
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  const { user } = useUser();
   const pathname = usePathname();
-
-  useEffect(() => {
-    // Flask セッション情報を取得
-    axios
-      .get("http://localhost:5000/api/session", { withCredentials: true })
-      .then((res) => {
-        setUser(res.data.user || null);
-      })
-      .catch(() => setUser(null));
-  }, []);
 
   const handleLogout = async () => {
     await axios.post("http://localhost:5000/api/logout", {}, { withCredentials: true });
@@ -59,8 +39,7 @@ export default function RootLayout({
                     <Link href="/admin">カレンダー</Link>
                     <Link href="/admin/day/today">シフト確認</Link>
                     <Link href="/shop_register">店舗登録</Link>
-                    <Link href="/account/edit">アカウント</Link>
-                    {/* 店舗詳細は動的リンク */}
+                    <Link href="/edit_account">アカウント</Link>
                     <Link href="/shop/detail">店舗詳細</Link>
                   </>
                 ) : (
@@ -69,7 +48,7 @@ export default function RootLayout({
                     <Link href="/shift_input">シフト提出</Link>
                     <Link href="/shop_register">店舗登録</Link>
                     <Link href="/edit_account">アカウント</Link>
-                    <Link href="/shop/[shopId]">店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_name || "unknown"}`}>店舗詳細</Link>
                   </>
                 )}
               </div>
@@ -90,6 +69,21 @@ export default function RootLayout({
           <div className="header">シフト管理システム</div>
           {children}
         </div>
+      </body>
+    </html>
+  );
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ja">
+      <head>
+        <title>シフト管理システム</title>
+      </head>
+      <body>
+        <UserProvider>
+          <LayoutContent>{children}</LayoutContent>
+        </UserProvider>
       </body>
     </html>
   );
