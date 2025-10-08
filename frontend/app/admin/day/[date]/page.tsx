@@ -3,19 +3,21 @@
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import axios from "axios";
 
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
-export default function AdminDay({ params }: { params: { date: string } }) {
-  const date = params.date;
+export default function AdminDay({ params }: { params: Promise<{ date: string }> }) {
+  const dateObj = React.use(params); // params を unwrap
+  const date = dateObj.date;
+
   const [schedule, setSchedule] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios
-      .get(`http://localhost:5000/api/admin/day/${date}`, { withCredentials: true })
-      .then((res) => setSchedule(res.data.schedule || {}))
+    // schedule を API から取得する例
+    fetch(`http://localhost:5000/api/shifts/${date}`, { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => setSchedule(data || {}))
       .finally(() => setLoading(false));
   }, [date]);
 
@@ -45,7 +47,15 @@ export default function AdminDay({ params }: { params: { date: string } }) {
     <>
       <h1>{date} のシフト一覧</h1>
       {data.length > 0 ? (
-        <Plot data={data} layout={{ title: `${date} のシフト希望`, xaxis: { type: "date" }, yaxis: { automargin: true } }} style={{ width: "100%", height: "600px" }} />
+        <Plot
+          data={data}
+          layout={{
+            title: `${date} のシフト希望`,
+            xaxis: { type: "date" },
+            yaxis: { automargin: true },
+          }}
+          style={{ width: "100%", height: "600px" }}
+        />
       ) : (
         <p>シフトデータがありません</p>
       )}
@@ -53,4 +63,5 @@ export default function AdminDay({ params }: { params: { date: string } }) {
     </>
   );
 }
+
 

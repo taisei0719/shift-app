@@ -1,98 +1,36 @@
+// frontend/app/admin/page.tsx
+
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+// ★ 修正点: 共通の Calendar コンポーネントをインポート
+import Calendar from "../../components/Calendar"; 
+import { useUser } from "../context/UserContext";
 
-interface Day {
-  day: number | "";
-  month: number;
-  dateStr: string;
-}
+export default function AdminPage() {
+    const { user } = useUser();
 
-interface AdminCalendarProps {
-  year?: number;
-  month?: number;
-  prevYear?: number;
-  prevMonth?: number;
-  nextYear?: number;
-  nextMonth?: number;
-  days?: Day[];
-  user?: any;
-  shop?: any;
-}
-
-export default function AdminCalendar({
-  days = [],
-}: { days?: Day[] }) {
-  const searchParams = useSearchParams();
-  const yearParam = searchParams.get("year");
-  const monthParam = searchParams.get("month");
-
-  const year = yearParam ? parseInt(yearParam) : new Date().getFullYear();
-  const month = monthParam ? parseInt(monthParam) : new Date().getMonth() + 1;
-
-  // 前月・次月計算
-  const prevDate = new Date(year, month - 2);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth() + 1;
-
-  const nextDate = new Date(year, month);
-  const nextYear = nextDate.getFullYear();
-  const nextMonth = nextDate.getMonth() + 1;
-
-  // カレンダー自動生成
-  const generateDays = () => {
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-    const daysArray: Day[] = [];
-
-    for (let i = 0; i < firstDay.getDay(); i++) {
-      daysArray.push({ day: "", month: month - 1, dateStr: "" });
+    // 店舗未所属の場合は店舗登録へ誘導
+    if (!user || user.shop_id === null) {
+        return (
+            <div className="admin-container">
+                <h1>管理者トップ</h1>
+                <p>店舗がまだ登録されていません。</p>
+                <p>サイドバーの**「店舗登録」**から、新しい店舗を登録してください。</p>
+            </div>
+        );
     }
 
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      const date = new Date(year, month - 1, d);
-      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      daysArray.push({ day: d, month, dateStr });
-    }
-
-    while (daysArray.length % 7 !== 0) {
-      daysArray.push({ day: "", month: month + 1, dateStr: "" });
-    }
-
-    return daysArray;
-  };
-  const calendarDays = days.length ? days : generateDays(year, month);
-
-  return (
-    <>
-      <h1>{year}年 {month}月</h1>
-
-      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", margin: "10px 0" }}>
-        <Link href={`/admin?year=${prevYear}&month=${prevMonth}`}>← 前の月</Link>
-        <Link href={`/admin?year=${nextYear}&month=${nextMonth}`}>次の月 →</Link>
-      </div>
-
-      <table border={1} style={{ width: "100%", textAlign: "center" }}>
-        <tbody>
-          {Array.from({ length: Math.ceil(calendarDays.length / 7) }).map((_, rowIndex) => (
-            <tr key={rowIndex}>
-              {calendarDays.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, idx) => (
-                <td key={day.dateStr || idx}>
-                  {day.day || ""}
-                  <br />
-                  {day.month === month && day.day ? (
-                    <Link href={`/admin/day/${day.dateStr}`}>詳細</Link>
-                  ) : (
-                    <span style={{ color: "gray" }}>詳細</span>
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
+    return (
+        <div className="admin-container">
+            <h1>{user.shop_name || "店舗管理"} - シフト確認</h1>
+            <p>カレンダーから確認したい日をクリックしてください。</p>
+            
+            {/* ★ 修正点: 共通Calendarを配置。base_pathとcurrent_page_pathを渡す */}
+            <Calendar 
+                base_path="/admin/day" 
+                current_page_path="/admin" // 月移動のリンク用
+            />
+        </div>
+    );
 }

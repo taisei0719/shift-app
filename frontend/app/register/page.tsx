@@ -17,7 +17,7 @@ export default function Register() {
     e.preventDefault();
     try {
       await api.post("/register", { name, email, password, role });
-      router.push("/login");
+      router.push("/");
     } catch (err) {
       setError(err.response?.data?.error || "登録に失敗しました");
     }

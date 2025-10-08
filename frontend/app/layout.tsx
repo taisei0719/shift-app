@@ -40,15 +40,15 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                     <Link href="/admin/day/today">シフト確認</Link>
                     <Link href="/shop_register">店舗登録</Link>
                     <Link href="/edit_account">アカウント</Link>
-                    <Link href="/shop/detail">店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
                   </>
                 ) : (
                   <>
                     <Link href="/staff">スタッフトップ</Link>
                     <Link href="/shift_input">シフト提出</Link>
-                    <Link href="/shop_register">店舗登録</Link>
+                    <Link href="/staff_shop_register">店舗登録</Link>
                     <Link href="/edit_account">アカウント</Link>
-                    <Link href={`/shop/${user.shop_name || "unknown"}`}>店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
                   </>
                 )}
               </div>

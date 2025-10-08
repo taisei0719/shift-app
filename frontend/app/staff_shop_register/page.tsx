@@ -10,7 +10,7 @@ export default function StaffShopRegister({ user }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post("/staff_shop_register", { shop_code: shopCode });
+      const res = await api.post("/join_shop", { shop_code: shopCode });
       setMessage(res.data.message);
     } catch (err) {
       setMessage(err.response?.data?.error || "登録に失敗しました");
@@ -18,7 +18,7 @@ export default function StaffShopRegister({ user }) {
   };
 
   return (
-    <Layout user={user}>
+    <>
       <h1>店舗IDで登録</h1>
       {message && <p className="flash">{message}</p>}
       <form onSubmit={handleSubmit}>
@@ -34,6 +34,6 @@ export default function StaffShopRegister({ user }) {
         <br />
         <button type="submit">登録</button>
       </form>
-    </Layout>
+    </>
   );
 }
