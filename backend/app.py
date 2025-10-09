@@ -95,6 +95,85 @@ def register():
     db.session.commit()
     return jsonify({"message": "登録成功"}), 201
 
+# -------------------- API: アカウント情報編集 --------------------
+@app.route("/api/account/edit", methods=["POST"])
+def edit_account():
+    # 1. ログインチェック
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "ログインが必要です"}), 401
+
+    data = request.json
+    new_name = data.get("name")
+    new_email = data.get("email")
+    new_password = data.get("password") # パスワードは変更する場合のみ
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    # 2. 名前の更新
+    if new_name:
+        user.name = new_name
+        session["user_name"] = new_name # セッションも更新
+
+    # 3. メールの更新と重複チェック
+    if new_email and new_email != user.email:
+        # 他のユーザーが既にそのメールアドレスを使っていないかチェック
+        if User.query.filter_by(email=new_email).first():
+            return jsonify({"error": "そのメールアドレスは既に使用されています"}), 400
+        user.email = new_email
+
+    # 4. パスワードの更新
+    if new_password:
+        user.password = generate_password_hash(new_password)
+
+    db.session.commit()
+    
+    # 5. フロントエンドに返す情報 (リフレッシュ用にユーザー名などを返す必要はないけど、メッセージを返す)
+    return jsonify({"message": "アカウント情報を更新しました"}), 200
+
+
+# -------------------- API: アカウント削除 --------------------
+@app.route("/api/account/delete", methods=["POST"])
+def delete_account():
+    # 1. ログインチェック
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "ログインが必要です"}), 401
+    
+    # 2. ユーザーオブジェクトを取得
+    user = db.session.get(User, user_id)
+    if not user:
+        # DBにユーザーがいなくてもセッションは消す
+        session.clear() 
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    try:
+        # ★ 3. 関連データの削除 (CASCADE設定をしてない場合、手動で削除が必要)
+        # ユーザーに紐づく全ての ShiftRequest を取得
+        shift_requests = ShiftRequest.query.filter_by(user_id=user.id).all()
+        
+        for sr in shift_requests:
+            # ShiftRequestに紐づく Shift も削除
+            Shift.query.filter_by(shift_request_id=sr.id).delete()
+            # ShiftRequest 本体を削除
+            db.session.delete(sr)
+
+        # ★ 4. ユーザーアカウント本体の削除
+        db.session.delete(user)
+        
+        # 5. セッション情報のクリア
+        session.clear()
+        
+        db.session.commit()
+        return jsonify({"message": "アカウントを正常に削除しました"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"アカウント削除エラー: {e}")
+        return jsonify({"error": "アカウントの削除中にエラーが発生しました"}), 500
+
 # -------------------- API: ログイン --------------------
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -124,26 +203,49 @@ def logout():
     session.clear()
     return jsonify({"message": "ログアウト成功"})
 
-# -------------------- API: シフト提出 --------------------
-@app.route("/api/shift_input", methods=["POST"])
-def shift_input():
-    if "user_id" not in session:
+# -------------------- API: シフト提出 (複数対応版) --------------------
+@app.route("/api/shifts_batch", methods=["POST"])
+def shifts_batch():
+    user_id = session.get("user_id")
+    if not user_id:
         return jsonify({"error": "ログインが必要です"}), 401
 
     data = request.json
-    date = data.get("date")
-    start_time = data.get("start_time")
-    end_time = data.get("end_time")
+    submitted_shifts = data.get("shifts", []) # フロントから配列で来ることを想定
 
-    shift_request = ShiftRequest(user_id=session["user_id"], date=date)
-    db.session.add(shift_request)
+    if not submitted_shifts:
+        return jsonify({"error": "シフトデータがありません"}), 400
+
+    # 提出されたシフトは全て同じ日付のはずなので、最初のエントリから日付を取得
+    target_date = submitted_shifts[0].get("date")
+
+    # 1. 同じ日の既存の ShiftRequest レコードを取得/作成
+    # SQLAlchemy 2.0形式に直しておく
+    shift_request = ShiftRequest.query.filter_by(user_id=user_id, date=target_date).first()
+
+    if shift_request:
+        # 既に提出済みの場合: 既存の関連シフトを一旦全部削除
+        db.session.query(Shift).filter_by(shift_request_id=shift_request.id).delete()
+    else:
+        # 新規提出の場合: 新しい ShiftRequest レコードを作成
+        shift_request = ShiftRequest(user_id=user_id, date=target_date)
+        db.session.add(shift_request)
+    
+    # 既存のものを削除した場合も、新しいものを追加した場合も、ここでコミットしてIDを確定させる
     db.session.commit()
 
-    shift = Shift(shift_request_id=shift_request.id, time_slot=f"{start_time}-{end_time}")
-    db.session.add(shift)
+    # 2. 新しいシフトを全て登録
+    for shift_data in submitted_shifts:
+        start_time = shift_data.get("start_time")
+        end_time = shift_data.get("end_time")
+        time_slot = f"{start_time}-{end_time}"
+        
+        shift = Shift(shift_request_id=shift_request.id, time_slot=time_slot)
+        db.session.add(shift)
+
     db.session.commit()
 
-    return jsonify({"message": "シフト提出成功"})
+    return jsonify({"message": f"日付 {target_date} のシフト希望を登録しました！"})
 
 # -------------------- API: 店舗登録 --------------------
 @app.route("/api/shop_register", methods=["POST"])
