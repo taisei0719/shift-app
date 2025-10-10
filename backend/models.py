@@ -22,15 +22,6 @@ class User(db.Model):
     # 修正: 参加リクエスト用カラムを追加 (前回議論した内容)
     shop_request_code = db.Column(db.String(32), nullable=True) # 暫定的なリクエスト店舗コード
 
-# class ShiftRequest(db.Model):
-#     __tablename__ = 'shift_requests'
-#     id = db.Column(db.Integer, primary_key=True)
-#     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-#     date = db.Column(db.String(10), nullable=False)
-#     shifts = db.relationship('Shift', backref='request', cascade="all, delete-orphan")
-#     # 確定済みシフトフラグを追加 (今後の確定機能のために準備)
-#     is_confirmed = db.Column(db.Boolean, default=False) 
-
 # Shiftモデル: シフトの希望や確定シフトを格納する
 class Shift(db.Model):
     __tablename__ = 'shifts'

@@ -1,4 +1,4 @@
-// frontend/app/staff/shifts/_ShiftCalendarClient.tsx
+// frontend/app/shifts/_ShiftCalendarClient.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
