@@ -13,6 +13,7 @@ export default function ShiftInputPage() {
     // 複数シフトのフォーム状態（シンプル化のため、hoursのselectは一旦使わへんよ）
     const [shifts, setShifts] = useState([{ start: "09:00", end: "17:00" }]);
     const [message, setMessage] = useState("");
+    const [loading, setLoading] = useState(false); 
 
     // シフト希望を追加する関数
     const addShift = () => {
@@ -37,21 +38,25 @@ export default function ShiftInputPage() {
         e.preventDefault();
         setMessage(`${date} のシフトを提出中...`);
 
-        // ★ 修正点2: 複数シフトデータを配列で、新しいAPI /shifts_batch に送る
-        const shiftData = shifts.map(s => ({
+        const submitRequests = shifts.map(s => ({
             date: date,
-            start_time: s.start,
-            end_time: s.end,
+            start: s.start, // ★ 修正: start_time -> start
+            end: s.end,     // ★ 修正: end_time -> end
         }));
 
         try {
-            const res = await api.post("/shifts_batch", { shifts: shiftData });
+            // ★ 修正3: APIエンドポイントを /api/shifts/submit_request に修正
+            const res = await api.post("/shifts/submit_request", { requests: submitRequests });
+            
             setMessage(res.data.message);
-            // 成功したらフォームをリセット
+            // 成功したらフォームをリセット (提出済みのデータを取得して表示する機能がない場合はこのままでOK)
             setShifts([{ start: "09:00", end: "17:00" }]); 
 
         } catch (err: any) {
-            setMessage(err.response?.data?.error || "提出に失敗しました");
+            const errorMsg = err.response?.data?.error || "提出に失敗しました";
+            setMessage(errorMsg);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -96,7 +101,7 @@ export default function ShiftInputPage() {
                 <button type="submit">この日のシフトを提出</button>
             </form>
             
-            <Link href="/staff" style={{ display: 'block', marginTop: '20px' }}>
+            <Link href="/shifts" style={{ display: 'block', marginTop: '20px' }}>
                 カレンダーに戻る
             </Link>
         </div>

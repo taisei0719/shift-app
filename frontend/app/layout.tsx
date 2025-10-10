@@ -16,11 +16,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <html lang="ja">
-      <head>
-        <title>シフト管理システム</title>
-      </head>
-      <body>
+    <>
         <div className="sidebar">
           {user ? (
             <>
@@ -41,6 +37,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                     <Link href="/shop_register">店舗登録</Link>
                     <Link href="/edit_account">アカウント</Link>
                     <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
+                    <Link href="/admin/join_requests">参加リクエスト</Link>
                   </>
                 ) : (
                   <>
@@ -68,8 +65,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           <div className="header">シフト管理システム</div>
           {children}
         </div>
-      </body>
-    </html>
+    </>
   );
 }
 

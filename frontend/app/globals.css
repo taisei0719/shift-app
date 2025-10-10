@@ -1,3 +1,9 @@
+/* frontend/app/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* 全体設定 */
 body {
     font-family: Arial, sans-serif;
