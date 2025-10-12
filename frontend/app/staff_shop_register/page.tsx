@@ -1,15 +1,19 @@
+//app/staff_shop_register/page.tsx
+
 "use client";
 
 import React, { useState } from "react";
 import { api } from "../../lib/api";
+import { useUser } from "../context/UserContext";
 
 // ★ コンポーネント名を StaffShopRequest に変更
 // ★ props に onUpdate 関数を追加
-export default function StaffShopRequest({ user, onUpdate }) {
+export default function StaffShopRequest() {
   const [shopCode, setShopCode] = useState("");
   const [message, setMessage] = useState("");
+   const { user, refreshUser } = useUser();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage("リクエストを送信中..."); // UIフィードバック
 
@@ -20,19 +24,12 @@ export default function StaffShopRequest({ user, onUpdate }) {
       const successMessage = res.data.message || "参加リクエストを送信しました！";
       setMessage(successMessage);
       
-      // ★ 必須修正: リクエスト成功後、親コンポーネネントのユーザー情報を更新
-      // userオブジェクトを直接変更するのではなく、onUpdateを通じて親のステートを更新する。
-      // ここでは、ユーザーの shop_request_code がDBで更新されたことを反映させるために、
-      // 実際には /api/session を再取得するか、親で管理している user ステートを更新する必要がある。
-      // 今回はバックエンドのレスポンスが不十分なため、onUpdateを通じて親でセッションを再取得する設計とする。
-      if (onUpdate) {
-        // onUpdate を実行して、親コンポーネントにユーザー情報の再取得を促す
-        onUpdate(successMessage); 
-      }
+      // リクエスト成功後、親コンポーネネントのユーザー情報を更新
+      await refreshUser();
 
     } catch (err) {
-      // エラーレスポンスの確認
-      const errorMessage = err.response?.data?.error || "リクエスト送信に失敗しました";
+      const error = err as any; 
+      const errorMessage = error.response?.data?.error || "リクエスト送信に失敗しました";
       console.error(err); 
       setMessage(errorMessage);
     }

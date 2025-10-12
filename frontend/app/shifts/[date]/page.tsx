@@ -14,8 +14,8 @@ interface PageProps {
  * スタッフ向け確定シフト確認ページ (Server Component)
  * URLから日付パラメータを取得し、クライアントコンポーネントに渡します。
  */
-export default function StaffShiftViewPage({ params }: PageProps) {
-    const { date } = params;
+export default function StaffShiftViewPage(props: any) {
+    const { date } = props.params;
 
     // クライアントコンポーネントに date だけを渡す
     return <ShiftViewClient date={date} />;

@@ -1,3 +1,4 @@
+# shift-app/docker-compose.yml
 version: '3.9' # バージョンはこのままでOK
 
 services:
@@ -26,7 +27,7 @@ services:
       # Next.jsからアクセスできるように環境変数を設定
       - FLASK_ENV=development
       # ★DB接続URLを明示的に指定（dbサービスでマウントした/instance内のファイル）
-      - DATABASE_URL=sqlite:////instance/shift.db 
+      - DATABASE_URL=sqlite:////instance/shifts.db 
     depends_on:
       - db # DBの準備ができてから起動させる
 
@@ -38,13 +39,12 @@ services:
     container_name: shift_app_frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules # node_modulesはコンテナ内でインストールしたものを使うように除外
+    #volumes:
+      #- ./frontend:/app
+      #- /app/node_modules # node_modulesはコンテナ内でインストールしたものを使うように除外
     environment:
-      # Next.jsからバックエンドにアクセスするための環境変数を設定
-      # サービス名（backend）でコンテナ間通信させるのがポイント
       - NEXT_PUBLIC_API_BASE_URL=http://backend:5000 
+      - HOST=0.0.0.0
     depends_on:
       - backend # バックエンドが起動してからフロントエンドを起動
 

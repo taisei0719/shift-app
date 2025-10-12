@@ -86,7 +86,7 @@ export default function ShiftViewClient({ date }: { date: string }) {
                 <Link href={`/shifts/${previousDate}`} style={{ textDecoration: 'none', color: '#0070f3' }}>
                     &lt; 前の日 ({previousDate})
                 </Link>
-                <h1 style={{ fontSize: '1.5em', color: '#333' }}>{user.name} さんの {date} の確定シフト</h1>
+                <h1 style={{ fontSize: '1.5em', color: '#333' }}>{user.user_name} さんの {date} の確定シフト</h1>
                 <Link href={`/shifts/${nextDate}`} style={{ textDecoration: 'none', color: '#0070f3' }}>
                     次の日 ({nextDate}) &gt;
                 </Link>

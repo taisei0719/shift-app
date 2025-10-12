@@ -12,7 +12,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const { setUser } = useUser();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const res = await api.post("/login", { identifier, password });
@@ -22,7 +22,8 @@ export default function Login() {
       }
       router.push(res.data.user.role === "staff" ? "/staff" : "/admin");
     } catch (err) {
-      setError(err.response?.data?.error || "ログインに失敗しました");
+      const error = err as any; // ★この行を追加！errをanyとして扱う
+      setError(error.response?.data?.error || "ログインに失敗しました");
     }
   };
 

@@ -12,7 +12,7 @@ interface PageProps {
 }
 
 // サーバーコンポーネント: paramsを安全に取得し、クライアントコンポーネントに渡す
-export default async function AdminShiftAdjustPage({ params }: PageProps) {
-    const { date } = params;
+export default async function AdminShiftAdjustPage(props: any) {
+    const { date } = props.params;
     return <ShiftAdjustClient date={date} />;
 }

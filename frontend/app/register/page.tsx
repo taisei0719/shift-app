@@ -1,8 +1,11 @@
+//frontend/app/register/page.tsx
+
 "use client";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api";
+import Link from "next/link";
 
 
 export default function Register() {
@@ -13,13 +16,14 @@ export default function Register() {
   const [role, setRole] = useState("staff");
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       await api.post("/register", { name, email, password, role });
       router.push("/");
     } catch (err) {
-      setError(err.response?.data?.error || "登録に失敗しました");
+      const error = err as any; // ★この行を追加！errをanyとして扱う
+      setError(error.response?.data?.error || "登録に失敗しました");
     }
   };
 
@@ -51,7 +55,7 @@ export default function Register() {
         <button type="submit">登録</button>
       </form>
       <div className="center-message">
-        すでにアカウントをお持ちですか？ <a href="/">ログイン</a>
+        すでにアカウントをお持ちですか？ <Link href="/">ログイン</Link>
       </div>
     </div>
   );

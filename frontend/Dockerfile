@@ -1,5 +1,6 @@
+# frontend/Dockerfile
 # Next.jsアプリのビルド用にNode.jsのイメージを使う
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 # 作業ディレクトリを設定
 WORKDIR /app
@@ -15,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # --- 本番環境用の軽量なイメージ ---
-FROM node:20-slim
+FROM node:22-slim
 
 # 作業ディレクトリを設定
 WORKDIR /app

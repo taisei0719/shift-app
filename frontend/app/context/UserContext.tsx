@@ -1,3 +1,5 @@
+//app/context/UserContext.tsx
+
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
@@ -17,18 +19,21 @@ interface UserContextType {
   user: UserInfo | null;
   refreshUser: () => Promise<void>;
   setUser: (userData: UserInfo | null) => void;
+  loading: boolean;
 }
 
 const UserContext = createContext<UserContextType>({
   user: null,
   refreshUser: async () => {},
   setUser: () => {},
+  loading: true,
 });
 
 export const useUser = () => useContext(UserContext);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Axios インスタンスを直接使用し、baseUrlを設定した api.ts を使う方がより堅牢だが、
   // ここでは提供コードに合わせて axios を直接使用する。
@@ -50,6 +55,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Failed to refresh user session:", error);
       setUser(null);
+    } finally {
+      setLoading(false); // ★ 読み込み完了時にfalseを設定！
     }
   };
 
@@ -58,7 +65,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, refreshUser, setUser }}>
+    <UserContext.Provider value={{ user, refreshUser, setUser, loading }}>
       {children}
     </UserContext.Provider>
   );

@@ -3,17 +3,16 @@
 
 import React, { useState } from "react";
 import { api } from "../../lib/api";
-// ★ 修正点1: useRouter をインポートする
 import { useRouter } from "next/navigation"; 
 
-export default function ShopRegister({ user }) {
+export default function ShopRegister() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [message, setMessage] = useState("");
   // ★ 修正点2: useRouter のインスタンスを作成
   const router = useRouter(); 
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const res = await api.post("/shop_register", { name, location });
@@ -30,7 +29,8 @@ export default function ShopRegister({ user }) {
       }
 
     } catch (err) {
-      setMessage(err.response?.data?.error || "登録に失敗しました");
+      const error = err as any; // ★ TypeScriptエラー回避のため追加！
+      setMessage(error.response?.data?.error || "登録に失敗しました");
     }
   };
 
