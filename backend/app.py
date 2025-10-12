@@ -22,26 +22,29 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
+# Vercelの公開URLを設定するための環境変数を定義
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") 
+
 CORS(
     app, 
-    resources={r"/api/*": {"origins": "http://localhost:3000"}},
-    supports_credentials=True, # クッキー/セッション情報を送受信するために必要
-    allow_headers=["Content-Type", "Authorization"] # 通常使用するヘッダーを許可
+    resources={r"/api/*": {"origins": FRONTEND_URL}}, # 環境変数からVercelのURLを取得
+    supports_credentials=True, 
+    allow_headers=["Content-Type", "Authorization"] 
 ) 
 
-# -------------------- DB初期化 --------------------
-def init_db():
-    with app.app_context():
-        db.create_all()
-        if not User.query.filter_by(name='admin').first():
-            admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
-            db.session.add(admin)
-        if not User.query.filter_by(name='yamada').first():
-            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
-            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
-            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
-            db.session.add_all([staff1, staff2, staff3])
-        db.session.commit()
+# # -------------------- DB初期化 --------------------
+# def init_db():
+#     with app.app_context():
+#         db.create_all()
+#         if not User.query.filter_by(name='admin').first():
+#             admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
+#             db.session.add(admin)
+#         if not User.query.filter_by(name='yamada').first():
+#             staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
+#             staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
+#             staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
+#             db.session.add_all([staff1, staff2, staff3])
+#         db.session.commit()
 
 # -------------------- API: ユーザー登録 --------------------
 @app.route("/api/register", methods=["POST"])
@@ -703,8 +706,8 @@ def get_session():
 
 
 
-if __name__ == "__main__":
-    with app.app_context():
-        init_db()
-    app.run(debug=True)
+# if __name__ == "__main__":
+#     with app.app_context():
+#         init_db()
+#     app.run(debug=True)
 
