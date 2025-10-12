@@ -11,7 +11,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const handleLogout = async () => {
-    await axios.post("http://localhost:5000/api/logout", {}, { withCredentials: true });
+    await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/logout`, {}, { withCredentials: true });
     window.location.href = "/";
   };
 

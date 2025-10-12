@@ -40,7 +40,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     try {
       // セッション情報を取得
-      const res = await axios.get("http://localhost:5000/api/session", { withCredentials: true });
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/session`, { withCredentials: true });
       
       const userData = res.data.user;
 
