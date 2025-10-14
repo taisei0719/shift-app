@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # アプリケーションのコードをコンテナにコピー
 COPY . .
 
+RUN chmod +x start.sh
+
 # Flaskのデフォルトポート5000番を公開
 EXPOSE 10000
 
