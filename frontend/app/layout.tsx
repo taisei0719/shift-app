@@ -23,7 +23,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   if (loading) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gray-50">
-              <p className="text-xl text-indigo-700">読み込み中やで...</p>
+              <p className="text-xl text-indigo-700">読み込み中...</p>
           </div>
       );
   }
@@ -92,7 +92,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           {/* ログインしていない場合の表示 */}
           {!user && (
             <div className="not-logged-in p-4 text-center bg-white rounded-xl shadow-lg max-w-sm mx-auto mt-20">
-                <p className="text-lg mb-4 font-semibold text-gray-700">ログインしてへんで</p>
+                <p className="text-lg mb-4 font-semibold text-gray-700">未ログイン</p>
                 {pathname !== "/" && (
                     <Link href="/" className="text-indigo-600 hover:text-indigo-800 font-medium transition">
                         ログイン画面へ
