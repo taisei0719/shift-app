@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/app/context/UserContext'; 
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -26,6 +27,7 @@ interface Props {
 
 export default function ShiftCalendarClient({ initialYear, initialMonth }: Props) {
     const router = useRouter();
+    const { user } = useUser();
     // 表示する年月
     const [currentDate, setCurrentDate] = useState(new Date(initialYear, initialMonth - 1, 1));
     // ロードされたシフトデータ
@@ -44,8 +46,16 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
 
     // APIから月間シフトデータを取得する関数
     const fetchShifts = useCallback(async (y: number, m: number) => {
+        // ユーザー情報がない場合はAPIコールをスキップする ★
+        if (!user) {
+            // スキップしても、最終的には LayoutContent で未ログインと判断されて / にリダイレクトされる
+            // ここでは何もせずに終了する
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
+
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
             // fetch を使う場合、Cookie/セッションのための設定 'credentials: "include"' を追加
@@ -68,12 +78,18 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         } finally {
             setIsLoading(false);
         }
-    }, [router]);
+    }, [router, user]);
 
     // 年月が変わるたびにシフトデータを再取得
     useEffect(() => {
-        fetchShifts(year, month);
-    }, [year, month, fetchShifts]);
+        // user が存在する場合にのみ fetchShifts を実行する 
+        if (user) { 
+            fetchShifts(year, month);
+        } else {
+            // user が null/undefined の場合、ロード状態を解除して、LayoutContentによるリダイレクトを待つ
+            setIsLoading(false);
+        }
+    }, [year, month, fetchShifts, user]); 
 
     // カレンダーの日付リストを計算
     const daysInMonth = useMemo(() => {
