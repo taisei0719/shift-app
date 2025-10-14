@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, session
 from models import db, User, Shop, Shift
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, timedelta, date
 import random, string
 from dotenv import load_dotenv
