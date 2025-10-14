@@ -47,6 +47,13 @@ CORS(
     allow_headers=["Content-Type", "Authorization"] 
 )
 
+# -------------------- DBセッションの自動クローズ (Gunicorn環境で必須) --------------------
+@app.teardown_request
+def shutdown_session(exception=None):
+    # リクエスト終了時に、エラーの有無に関わらずセッションを確実にクローズ/解放する
+    # これにより、次のリクエストでは新しい接続が確立され、接続切断エラーを防ぐ
+    db.session.remove()
+
 # -------------------- DB接続待機 --------------------
 def wait_for_db():
     with app.app_context():
