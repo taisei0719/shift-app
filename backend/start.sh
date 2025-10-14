@@ -1,4 +1,3 @@
-# backend/start.sh
 #!/bin/bash
 python -c "from app import app, init_db; with app.app_context(): init_db()"
 
