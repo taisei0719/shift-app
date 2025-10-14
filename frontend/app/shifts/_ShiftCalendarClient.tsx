@@ -125,7 +125,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
 
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const res = await fetch(`${baseUrl}/api/shifts/submit_request`, {
+            const res = await fetch(`${baseUrl}/shifts/submit_request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
