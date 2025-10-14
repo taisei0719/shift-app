@@ -47,8 +47,13 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/shifts/month/${y}/${m}`);
+            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+            // fetch を使う場合、Cookie/セッションのための設定 'credentials: "include"' を追加
+            const res = await fetch(`${baseUrl}/api/shifts/month/${y}/${m}`, {
+                credentials: 'include' 
+            });
             if (!res.ok) {
+
                 // 401 Unauthorized の場合はログインページにリダイレクト
                 if (res.status === 401) {
                     router.push('/login');
@@ -119,9 +124,11 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         }];
 
         try {
-            const res = await fetch('/api/shifts/submit_request', {
+            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+            const res = await fetch(`${baseUrl}/api/shifts/submit_request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 // 休みの場合も含む全てのデータ送信
                 body: JSON.stringify({ requests: shiftData }),
             });
