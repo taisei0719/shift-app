@@ -19,6 +19,9 @@ app = Flask(__name__)
 
 app.secret_key = os.getenv("SECRET_KEY", "your_strong_secret_key_here")  
 
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
