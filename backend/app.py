@@ -22,7 +22,15 @@ app.secret_key = os.getenv("SECRET_KEY", "your_strong_secret_key_here")
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_SECURE'] = True
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
+# -------------------- Render/PostgreSQL 互換性修正 (必須) --------------------
+# RenderのPostgreSQLは 'postgres://' スキームで提供されるが、SQLAlchemy 2.0+ は 
+# 'postgresql://' を推奨するため、URIを修正する。
+database_url = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
+if database_url and database_url.startswith("postgres://"):
+    # スキームを 'postgres://' から 'postgresql://' に置き換える
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 接続プールのリサイクルを有効にする (PostgreSQLのアイドルタイムアウト対策)
