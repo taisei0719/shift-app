@@ -25,6 +25,11 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# 接続プールのリサイクルを有効にする (PostgreSQLのアイドルタイムアウト対策)
+app.config['SQLALCHEMY_POOL_RECYCLE'] = 280 
+# 接続プールサイズをGunicornワーカー数(4)に合わせて設定する
+app.config['SQLALCHEMY_POOL_SIZE'] = 5 
+
 db.init_app(app)
 
 # Vercelの公開URLを設定するための環境変数を定義
