@@ -56,7 +56,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
 
                 // 401 Unauthorized の場合はログインページにリダイレクト
                 if (res.status === 401) {
-                    router.push('/login');
+                    router.push('/');
                     return;
                 }
                 throw new Error('シフトデータの取得に失敗しました。');
