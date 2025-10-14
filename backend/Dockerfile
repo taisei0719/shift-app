@@ -19,4 +19,4 @@ EXPOSE 10000
 
 # Gunicornを使ってアプリを起動
 # ホスト0.0.0.0でリッスンさせるのが大事
-CMD gunicorn -w 4 -b 0.0.0.0:${PORT} app:app
+CMD python -c "from app import app, init_db; with app.app_context(): init_db()" && gunicorn -w 4 -b 0.0.0.0:${PORT} app:app
