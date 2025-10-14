@@ -15,7 +15,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const res = await api.post("/", { identifier, password });
+      const res = await api.post("/login", { identifier, password });
       // ログイン成功時、APIから返ってきたユーザー情報でコンテキストを即座に更新する
       if (res.data.user) {
         setUser(res.data.user); 
