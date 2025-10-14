@@ -155,17 +155,22 @@ def login():
     password = data.get("password")
 
     user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
-    # print("login data:", request.json) # debaug
+    
     if user and check_password_hash(user.password, password):
+        # ★ 修正: クラッシュを防ぐため、安全に shop_name を取得 (Pythonの短絡評価を利用)
+        # user.shop が None でなければ user.shop.name を、そうでなければ False/None を返す
+        shop_name_val = (user.shop and user.shop.name)
+        
         session["user_id"] = user.id
         session["user_name"] = user.name
         session["role"] = user.role
         session["shop_id"] = user.shop_id
-        session["shop_name"] = user.shop.name if user.shop else None
+        session["shop_name"] = shop_name_val # Noneまたは店舗名
+        
         return jsonify({"message": "ログイン成功", "user": {
             "user_name": user.name,
             "role": user.role,
-            "shop_name": user.shop.name if user.shop else None,
+            "shop_name": shop_name_val, # Noneまたは店舗名
             "shop_id": user.shop_id 
         }})
     return jsonify({"error": "ユーザー名かパスワードが違います"}), 401
