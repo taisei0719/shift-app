@@ -150,16 +150,12 @@ def delete_account():
 # -------------------- API: ログイン --------------------
 @app.route("/api/login", methods=["POST"])
 def login():
-    data = request.json
-    identifier = data.get("identifier")
-    password = data.get("password")
-
-    user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
+    # ... (途中省略)
     
     if user and check_password_hash(user.password, password):
-        # ★ 修正: クラッシュを防ぐため、安全に shop_name を取得 (Pythonの短絡評価を利用)
-        # user.shop が None でなければ user.shop.name を、そうでなければ False/None を返す
-        shop_name_val = (user.shop and user.shop.name)
+        # ★ 修正: Pythonの三項演算子で、最も安全かつ明確に None チェックを行う
+        # user.shop が None でなければ user.shop.name を、そうでなければ None を返す
+        shop_name_val = user.shop.name if user.shop else None
         
         session["user_id"] = user.id
         session["user_name"] = user.name
