@@ -65,10 +65,10 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             if (!res.ok) {
 
                 // 401 Unauthorized の場合はログインページにリダイレクト
-                if (res.status === 401) {
-                    router.push('/');
-                    return;
-                }
+                // if (res.status === 401) {
+                //     router.push('/');
+                //     return;
+                // }
                 throw new Error('シフトデータの取得に失敗しました。');
             }
             const data = await res.json();
