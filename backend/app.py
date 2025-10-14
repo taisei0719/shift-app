@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta, date
 import random, string
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 load_dotenv()
 
@@ -31,6 +32,26 @@ CORS(
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 ) 
+
+# -------------------- DB接続待機 --------------------
+def wait_for_db():
+    with app.app_context():
+        # 最大20秒間、2秒間隔でデータベース接続を試行する
+        print("INFO: Waiting for database connection...")
+        for i in range(10): 
+            try:
+                # 接続テスト: 単純なSQLを実行してみる
+                db.session.execute(text('SELECT 1')) 
+                print("INFO: Database connection successful!")
+                return # 成功したら終了
+            except Exception as e:
+                # 失敗したら待機
+                print(f"WARNING: DB not ready yet (attempt {i+1}/10). Waiting 2 seconds...")
+                time.sleep(2)
+        
+        # 10回試行しても接続できなかった場合
+        print("ERROR: Database connection failed after multiple retries.")
+        # ここで終了するとWebサービスもクラッシュするので、そのまま続行させる（init_dbで失敗する）
 
 # -------------------- DB初期化 --------------------
 def init_db():
