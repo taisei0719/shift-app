@@ -17,6 +17,8 @@ load_dotenv()
 
 app = Flask(__name__)
 
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
 app.secret_key = os.getenv("SECRET_KEY", "your_strong_secret_key_here")  
 
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
