@@ -23,7 +23,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 # Vercelの公開URLを設定するための環境変数を定義
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000") 
+FRONTEND_URL = os.getenv("FRONTEND_URL") 
 
 CORS(
     app, 
