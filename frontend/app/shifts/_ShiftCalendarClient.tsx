@@ -49,7 +49,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
             // fetch を使う場合、Cookie/セッションのための設定 'credentials: "include"' を追加
-            const res = await fetch(`${baseUrl}/api/shifts/month/${y}/${m}`, {
+            const res = await fetch(`${baseUrl}/shifts/month/${y}/${m}`, {
                 credentials: 'include' 
             });
             if (!res.ok) {
