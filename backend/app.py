@@ -32,19 +32,19 @@ CORS(
     allow_headers=["Content-Type", "Authorization"] 
 ) 
 
-# # -------------------- DB初期化 --------------------
-# def init_db():
-#     with app.app_context():
-#         db.create_all()
-#         if not User.query.filter_by(name='admin').first():
-#             admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
-#             db.session.add(admin)
-#         if not User.query.filter_by(name='yamada').first():
-#             staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
-#             staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
-#             staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
-#             db.session.add_all([staff1, staff2, staff3])
-#         db.session.commit()
+# -------------------- DB初期化 --------------------
+def init_db():
+    with app.app_context():
+        db.create_all()
+        if not User.query.filter_by(name='admin').first():
+            admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
+            db.session.add(admin)
+        if not User.query.filter_by(name='yamada').first():
+            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
+            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
+            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
+            db.session.add_all([staff1, staff2, staff3])
+        db.session.commit()
 
 # -------------------- API: ユーザー登録 --------------------
 @app.route("/api/register", methods=["POST"])
