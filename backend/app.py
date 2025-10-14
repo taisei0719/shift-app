@@ -150,7 +150,11 @@ def delete_account():
 # -------------------- API: ログイン --------------------
 @app.route("/api/login", methods=["POST"])
 def login():
-    # ... (途中省略)
+    data = request.json
+    identifier = data.get("identifier")
+    password = data.get("password")
+
+    user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
     
     if user and check_password_hash(user.password, password):
         # ★ 修正: Pythonの三項演算子で、最も安全かつ明確に None チェックを行う
