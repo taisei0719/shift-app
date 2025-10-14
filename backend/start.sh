@@ -7,4 +7,4 @@ python -c "from app import init_db, wait_for_db; wait_for_db(); init_db()"
 
 # 2. Gunicorn サーバーを起動
 echo "Starting Gunicorn server..."
-exec gunicorn -w 4 -b 0.0.0.0:${PORT} app:app
+exec gunicorn -w 2 -b 0.0.0.0:${PORT} app:app
