@@ -16,10 +16,9 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)
     password = db.Column(db.String(200), nullable=False)
     shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=True)
-    # 修正: backref を 'users_in_shop' などに変えると混乱を避けやすいが、既存のまま
-    shop = db.relationship("Shop", backref="users", uselist=False) 
-    
-    # 修正: 参加リクエスト用カラムを追加 (前回議論した内容)
+    # backref を 'users_in_shop' などに変えると混乱を避けやすいが、既存のまま
+    shop = db.relationship("Shop", backref="users", uselist=False)   
+    # 参加リクエスト用カラムを追加
     shop_request_code = db.Column(db.String(32), nullable=True) # 暫定的なリクエスト店舗コード
 
 # Shiftモデル: シフトの希望や確定シフトを格納する
@@ -66,10 +65,9 @@ class Shift(db.Model):
 class Shop(db.Model):
     __tablename__ = 'shops'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
+    name = db.Column(db.String(80), unique=True, nullable=False) #現在は店舗名の重複を許可していない
     location = db.Column(db.String(200), nullable=True)
-    # 修正: shop_codeを32桁に拡張 (前回議論した内容)
-    shop_code = db.Column(db.String(32), unique=True, nullable=False) 
+    shop_code = db.Column(db.String(32), unique=True, nullable=False)     # shop_codeを32桁に拡張
     
     # ユーティリティ関数をクラスメソッドとして定義（重複チェックのため）
     @staticmethod
