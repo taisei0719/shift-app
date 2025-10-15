@@ -55,7 +55,7 @@ def is_origin_allowed(origin):
     # 永続的に許可するオリジンリスト
     allowed_fixed_origins = [
         "http://localhost:3000", # ローカル開発環境用
-        FRONTEND_URL,            # 本番/カスタムドメイン
+        FRONTEND_URL            # 本番/カスタムドメイン
     ]
     
     # Vercel プレビュー URL パターン: https://***.vercel.app
