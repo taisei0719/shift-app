@@ -46,43 +46,21 @@ db.init_app(app)
 # Vercelの公開URLを設定するための環境変数を定義
 FRONTEND_URL = os.getenv("FRONTEND_URL") 
 
-# -------------------- CORS 許可オリジンチェック関数 (修正) --------------------
-def is_origin_allowed(origin):
-    """
-    リクエストオリジンが許可リストまたはVercelプレビューパターンに一致するかチェックする関数
-    """
-    # 永続的に許可するオリジンリスト
-    allowed_fixed_origins = [
-        "http://localhost:3000", # ローカル開発環境用
-        FRONTEND_URL,            # 本番/カスタムドメイン
-    ]
-    
-    # Vercel プレビュー URL パターン: https://***.vercel.app
-    # 正規表現: URLのスキーマとドメイン末尾が一致することを確認
-    vercel_preview_regex = r"^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$"
-    
-    # 1. オリジンが固定リストに含まれているか
-    if origin in allowed_fixed_origins and origin is not None:
-        return True
-    
-    # 2. オリジンがVercelプレビューパターンに一致するか
-    if origin and re.match(vercel_preview_regex, origin):
-        return True
-        
-    return False
-
-# -------------------- CORS 設定本体 (修正) --------------------
+# 許可するオリジンをリスト形式で定義
+# VercelのURLとローカルホストを両方許可することで、クッキー送信を確実にします。
+allowed_origins = [
+    "http://localhost:3000", # ローカル開発環境用
+    FRONTEND_URL             # Vercelのカスタムドメイン/プライマリURL
+]
+# Noneを除外する（念のため）
+final_origins = [o for o in allowed_origins if o is not None]
 
 CORS(
     app, 
-    # resourcesのoriginsにチェック関数を渡す
-    resources={
-        r"/api/*": {
-            "origins": is_origin_allowed, # 関数を渡す
-            "supports_credentials": True, # クッキーを許可
-            "allow_headers": ["Content-Type", "Authorization"] # 許可するヘッダー
-        }
-    }
+    # resourcesを使う形式を維持し、originsにリストを渡す
+    resources={r"/api/*": {"origins": final_origins}},
+    supports_credentials=True, 
+    allow_headers=["Content-Type", "Authorization"] 
 )
 
 # -------------------- DBセッションの自動クローズ (Gunicorn環境で必須) --------------------
