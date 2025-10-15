@@ -9,11 +9,8 @@ import { format, getMonth, getYear } from 'date-fns';
 import { ja } from 'date-fns/locale';
 // ★ 共通コンポーネントのCalendarをインポート
 import Calendar from '@/components/Calendar'; 
-// ★ 修正: Calendar.tsxからShiftDisplayDataをインポートします（CalendarPropsはコンポーネント自体で解決）
-import { ShiftDisplayData } from '@/components/Calendar';
 
-
-// 型定義 (サーバーとの通信用)
+// 型定義
 interface ShiftData {
     id: number;
     shift_date: string; // YYYY-MM-DD
@@ -38,11 +35,9 @@ interface Props {
     initialMonth: number;
 }
 
-
 export default function ShiftCalendarClient({ initialYear, initialMonth }: Props) {
     const router = useRouter();
-    // useUserのインポートが抜けていたため追加 (エラーなしだが補完)
-    const { user, loading } = useUser(); 
+    const { user } = useUser();
     
     // 表示する年月 (1-indexed)
     const [currentDate, setCurrentDate] = useState(new Date(initialYear, initialMonth - 1, 1));
@@ -59,7 +54,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     const [formData, setFormData] = useState(defaultFormData);
     const [message, setMessage] = useState<string | null>(null);
 
-    // シフトデータの取得ロジック
+    // シフトデータの取得ロジック (変更なし)
     const fetchShifts = useCallback(async (year: number, month: number) => {
         setIsLoading(true);
         setError(null);
@@ -67,19 +62,16 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            // APIパスの修正 (staff/shiftsのAPIはユーザーのシフトのみを返す)
             const res = await fetch(`${baseUrl}/shifts/month/${year}/${month}`, { 
                 credentials: 'include' 
             });
 
             if (!res.ok) {
-                // セッション問題のデバッグのためにリダイレクトは引き続き削除
                 throw new Error('シフトデータの取得に失敗しました。');
             }
 
             const data = await res.json();
             
-            // サーバーから返されたデータをShiftsByDate形式に変換
             const newShiftsByDate: ShiftsByDate = {};
             data.shifts.forEach((shift: ShiftData) => {
                 if (!newShiftsByDate[shift.shift_date]) {
@@ -99,32 +91,25 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     
     // 初期ロードと月変更時のデータ取得
     useEffect(() => {
-        // loadingが完了し、ユーザーが存在しない場合はリダイレクト（page.tsxで処理すべきだが念のため）
-        if (!loading && !user) {
-            // router.push('/'); 
-            return;
-        }
-        if (user && user.shop_id === null) {
-            // router.push('/staff_shop_register');
-            return;
-        }
-
-        if (user && !isLoading) {
-            fetchShifts(currentYear, currentMonth);
-        }
-    }, [currentYear, currentMonth, fetchShifts, user, loading, isLoading]);
+        // user情報が存在しない（ログアウト時など）はスキップ
+        if (!user && !isLoading) {
+             // 未ログイン時のリダイレクトはlayout.tsxやpage.tsxで処理すべきだが、
+             // safety checkとして残しておく
+             return;
+        } 
+        fetchShifts(currentYear, currentMonth);
+    }, [currentYear, currentMonth, fetchShifts, user, isLoading]);
 
 
     // Calendarコンポーネントに渡すためのシフトデータ形式への変換
-    const calendarShiftData: ShiftDisplayData = useMemo(() => {
-        const data: ShiftDisplayData = {};
+    const calendarShiftData = useMemo(() => {
+        const data: any = {};
         Object.entries(shiftsByDate).forEach(([date, shifts]) => {
             data[date] = {
                 shifts: shifts.map(s => ({
                     start: s.start_time,
                     end: s.end_time,
-                    // 型アサーションは避けて、確実に型に合うようにします
-                    type: s.shift_type as 'request' | 'confirmed' | 'day_off', 
+                    type: s.shift_type, // 'request', 'confirmed', 'day_off'
                 }))
             };
         });
@@ -132,7 +117,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     }, [shiftsByDate]);
 
 
-    // 月切り替えハンドラ (Calendarコンポーネントから呼ばれる)
+    // ★ Calendarに渡すハンドラ 1: 月切り替え時の処理
     const handleMonthChange = useCallback((year: number, month: number) => {
         setCurrentDate(new Date(year, month - 1, 1));
         setSelectedDate(null); // 日付選択をリセット
@@ -141,20 +126,9 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     }, []);
 
 
-    // 日付クリックハンドラ (Calendarコンポーネントから呼ばれる)
-    // isCurrentMonth パラメータは Calendar.tsx で追加したため、受け取るように修正
-    const handleDateClick = useCallback((dateStr: string, isCurrentMonth: boolean) => {
-        if (!isCurrentMonth) return; // 当月以外の日付は無視
-
-        // 確定シフト ('confirmed') が存在する場合はフォームを表示しない
-        const existingConfirmedShift = shiftsByDate[dateStr]?.some(s => s.shift_type === 'confirmed'); 
-        if (existingConfirmedShift) {
-             setMessage('確定シフトが存在するため、提出・変更はできません。');
-             setSelectedDate(null);
-             return;
-        }
-
-        // 既存のリクエストシフトまたは休み希望を取得
+    // ★ Calendarに渡すハンドラ 2: 日付クリック時の処理（フォーム表示）
+    const handleDateClick = useCallback((dateStr: string) => {
+        // スタッフは自分のリクエスト（'request'または'day_off'）のみ編集対象
         const existingShift = shiftsByDate[dateStr]?.find(s => s.shift_type !== 'confirmed'); 
         
         setSelectedDate(dateStr);
@@ -183,7 +157,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                 ...prev,
                 day_off: isChecked,
             }));
-            // 休み希望がチェックされたら時間をリセット
             if (isChecked) {
                 setFormData(prev => ({
                     ...prev,
@@ -206,21 +179,11 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         setMessage(null);
         setError(null);
         
-        // 確定シフトが存在する場合は再チェック
-        const existingConfirmedShift = shiftsByDate[selectedDate]?.some(s => s.shift_type === 'confirmed');
-        if (existingConfirmedShift) {
-             setError('確定シフトが存在するため、提出・変更はできません。');
-             setIsLoading(false);
-             return;
-        }
-        
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const endpoint = `${baseUrl}/shifts`; // POST /shifts
+            const endpoint = `${baseUrl}/shifts`; 
 
             const shift_type = formData.day_off ? 'day_off' : 'request';
-
-            // 休み希望の場合は時間を '00:00' - '00:00' で送信
             const submit_start_time = formData.day_off ? '00:00' : formData.start_time;
             const submit_end_time = formData.day_off ? '00:00' : formData.end_time;
 
@@ -231,10 +194,8 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                 shift_type: shift_type
             };
             
-            // 既にリクエスト（確定シフトは対象外）があるかチェック
             const existingShift = shiftsByDate[selectedDate]?.find(s => s.shift_type !== 'confirmed'); 
             const method = existingShift ? 'PUT' : 'POST';
-            // PUTの場合はIDをパスに追加
             const url = existingShift ? `${endpoint}/${existingShift.id}` : endpoint;
 
 
@@ -251,9 +212,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             }
             
             setMessage('シフトを提出・更新しました！');
-            // データ再取得
             await fetchShifts(currentYear, currentMonth);
-            // フォームのリセットは行わない（更新後の内容を表示したままにするため）
 
         } catch (err) {
             setError(err instanceof Error ? err.message : '不明なエラーが発生しました。');
@@ -266,13 +225,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     
     // --- レンダー部分 ---
     
-    // ロード中、または未ログイン（UserContextで処理）
-    if (loading || (user && user.shop_id === null)) {
-         return <div className="text-center mt-8">
-            <p className="text-xl text-indigo-700">{loading ? '読み込み中...' : '店舗に所属していません。'}</p>
-        </div>;
-    }
-    
     if (error && !isLoading) {
         return <p className="text-red-500 text-center mt-8">エラー: {error}</p>;
     }
@@ -282,18 +234,17 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             
             {/* 1. カレンダー部分 (共通Calendarコンポーネントを使用) */}
             <div className="lg:w-3/4 w-full">
-                {/* CalendarPropsと一致するプロパティを渡す */}
                 <Calendar
                     currentYear={currentYear}
                     currentMonth={currentMonth}
                     onMonthChange={handleMonthChange}
                     onDateClick={handleDateClick}
                     shiftsByDate={calendarShiftData}
-                    isAdminView={false} // スタッフビューなのでfalseを明示的に渡す
+                    // スタッフ用のビューなので isAdminView は false (デフォルト)
                 />
             </div>
             
-            {/* 2. フォーム/詳細表示部分 */}
+            {/* 2. フォーム/詳細表示部分 (変更なし) */}
             <div className="lg:w-1/4 w-full bg-white p-6 rounded-xl shadow-lg h-fit">
                 <h2 className="text-xl font-bold mb-4">シフト提出</h2>
 
@@ -302,7 +253,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                         <p className="text-lg font-semibold text-indigo-600 mb-4">{format(new Date(selectedDate), 'yyyy年M月d日 (EEE)', { locale: ja })}</p>
 
                         <div className="space-y-3">
-                            {/* 休み希望チェックボックス */}
                             <div className="flex items-center space-x-2">
                                 <input
                                     id="day_off"
@@ -315,7 +265,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                                 <label htmlFor="day_off" className="text-sm font-medium text-gray-700">この日は休みを希望する</label>
                             </div>
 
-                            {/* シフト時間入力 (休み希望がチェックされていない場合のみ有効) */}
                             <div className="flex space-x-2">
                                 <label htmlFor="start_time" className="sr-only">開始時間</label>
                                 <input
