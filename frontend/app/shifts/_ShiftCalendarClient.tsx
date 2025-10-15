@@ -1,14 +1,11 @@
-// frontend/app/staff/shifts/_ShiftCalendarClient.tsx
-
+// frontend/app/shifts/_ShiftCalendarClient.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext'; 
-import { format, getMonth, getYear } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
-// ★ 共通コンポーネントのCalendarをインポート
-import Calendar from '@/components/Calendar'; 
 
 // 型定義
 interface ShiftData {
@@ -16,19 +13,12 @@ interface ShiftData {
     shift_date: string; // YYYY-MM-DD
     start_time: string; // HH:MM
     end_time: string;   // HH:MM
-    shift_type: 'request' | 'confirmed' | 'day_off'; // day_offを含む
+    shift_type: 'request' | 'confirmed';
 }
 
 interface ShiftsByDate {
     [date: string]: ShiftData[]; // 日付文字列をキーとするシフトの配列
 }
-
-// フォームのデフォルト値
-const defaultFormData = {
-    start_time: '09:00',
-    end_time: '18:00',
-    day_off: false,
-};
 
 interface Props {
     initialYear: number;
@@ -38,260 +28,329 @@ interface Props {
 export default function ShiftCalendarClient({ initialYear, initialMonth }: Props) {
     const router = useRouter();
     const { user } = useUser();
-    
-    // 表示する年月 (1-indexed)
+    // 表示する年月
     const [currentDate, setCurrentDate] = useState(new Date(initialYear, initialMonth - 1, 1));
-    const currentYear = getYear(currentDate);
-    const currentMonth = getMonth(currentDate) + 1; // 1-indexed
-
     // ロードされたシフトデータ
     const [shiftsByDate, setShiftsByDate] = useState<ShiftsByDate>({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     
     // フォーム関連
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
-    const [formData, setFormData] = useState(defaultFormData);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null); // YYYY-MM-DD
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [message, setMessage] = useState<string | null>(null);
 
-    // シフトデータの取得ロジック (変更なし)
-    const fetchShifts = useCallback(async (year: number, month: number) => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+
+    // APIから月間シフトデータを取得する関数
+    const fetchShifts = useCallback(async (y: number, m: number) => {
+        // ユーザー情報がない場合はAPIコールをスキップする ★
+        if (!user) {
+            // スキップしても、最終的には LayoutContent で未ログインと判断されて / にリダイレクトされる
+            // ここでは何もせずに終了する
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
-        setMessage(null);
-        
+
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const res = await fetch(`${baseUrl}/shifts/month/${year}/${month}`, { 
+            // fetch を使う場合、Cookie/セッションのための設定 'credentials: "include"' を追加
+            const res = await fetch(`${baseUrl}/shifts/month/${y}/${m}`, {
                 credentials: 'include' 
             });
-
             if (!res.ok) {
+
+                // 401 Unauthorized の場合はログインページにリダイレクト
+                // if (res.status === 401) {
+                //     router.push('/');
+                //     return;
+                // }
                 throw new Error('シフトデータの取得に失敗しました。');
             }
+            const data = await res.json();
+            setShiftsByDate(data.shifts_by_date || {});
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'データの取得中に予期せぬエラーが発生しました。');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [router, user]);
+
+    // 年月が変わるたびにシフトデータを再取得
+    useEffect(() => {
+        // user が存在する場合にのみ fetchShifts を実行する 
+        if (user) { 
+            fetchShifts(year, month);
+        } else {
+            // user が null/undefined の場合、ロード状態を解除して、LayoutContentによるリダイレクトを待つ
+            setIsLoading(false);
+        }
+    }, [year, month, fetchShifts, user]); 
+
+    // カレンダーの日付リストを計算
+    const daysInMonth = useMemo(() => {
+        const start = startOfMonth(currentDate);
+        const end = endOfMonth(currentDate);
+        // 月初から月末までの全ての日付を取得
+        return eachDayOfInterval({ start, end });
+    }, [currentDate]);
+    
+    // カレンダーの表示開始位置を調整するための空のマス目を計算
+    const startingDayOfWeek = daysInMonth[0].getDay(); // 0: 日曜, 6: 土曜
+
+    // ---------------------- フォーム操作 ----------------------
+    
+    // 日付を選択したときの処理 (提出フォームを表示)
+    const handleDayClick = (dateObj: Date) => {
+        const dateStr = format(dateObj, 'yyyy-MM-dd');
+        setSelectedDate(dateStr);
+        setMessage(null); // メッセージをクリア
+        
+        // 既存の希望シフトがあれば、フォームに時間をセット
+        const existingShift = shiftsByDate[dateStr]?.find(s => s.shift_type === 'request');
+        if (existingShift) {
+            setStartTime(existingShift.start_time);
+            setEndTime(existingShift.end_time);
+        } else {
+            // 休みや未提出の場合はフォームをクリア
+            setStartTime('00:00'); 
+            setEndTime('00:00');
+        }
+    };
+    
+    // シフト提出（希望シフトの登録/更新）
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDate) return;
+        
+        setIsLoading(true);
+        setMessage(null);
+        
+        const isDayOff = startTime === '00:00' && endTime === '00:00';
+        
+        // 提出データは常に配列として送信
+        const shiftData = [{
+            date: selectedDate, // ★ キーを shift_date から date に修正
+            start: startTime,   // ★ キーを start_time から start に修正
+            end: endTime,       // ★ キーを end_time から end に修正
+        }];
+
+        try {
+            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+            const res = await fetch(`${baseUrl}/shifts/submit_request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                // 休みの場合も含む全てのデータ送信
+                body: JSON.stringify({ requests: shiftData }),
+            });
 
             const data = await res.json();
             
-            const newShiftsByDate: ShiftsByDate = {};
-            data.shifts.forEach((shift: ShiftData) => {
-                if (!newShiftsByDate[shift.shift_date]) {
-                    newShiftsByDate[shift.shift_date] = [];
-                }
-                newShiftsByDate[shift.shift_date].push(shift);
-            });
+            if (res.ok) {
+                // 成功したらデータを再取得してカレンダーを更新
+                setMessage(isDayOff ? '休みとして提出しました！' : 'シフト希望を提出しました！');
+                await fetchShifts(year, month);
+            } else {
+                setMessage(`提出失敗: ${data.error || 'サーバーエラー'}`);
+            }
 
-            setShiftsByDate(newShiftsByDate);
         } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : 'データの読み込み中にエラーが発生しました。');
+            setMessage('提出中にエラーが発生しました。');
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    };
     
-    // 初期ロードと月変更時のデータ取得
-    useEffect(() => {
-        // user情報が存在しない（ログアウト時など）はスキップ
-        if (!user && !isLoading) {
-             // 未ログイン時のリダイレクトはlayout.tsxやpage.tsxで処理すべきだが、
-             // safety checkとして残しておく
-             return;
-        } 
-        fetchShifts(currentYear, currentMonth);
-    }, [currentYear, currentMonth, fetchShifts, user, isLoading]);
-
-
-    // Calendarコンポーネントに渡すためのシフトデータ形式への変換
-    const calendarShiftData = useMemo(() => {
-        const data: any = {};
-        Object.entries(shiftsByDate).forEach(([date, shifts]) => {
-            data[date] = {
-                shifts: shifts.map(s => ({
-                    start: s.start_time,
-                    end: s.end_time,
-                    type: s.shift_type, // 'request', 'confirmed', 'day_off'
-                }))
-            };
+    // ---------------------- ナビゲーション ----------------------
+    
+    const goToPreviousMonth = () => {
+        setCurrentDate(prev => {
+            const newDate = new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
+            return newDate;
         });
-        return data;
-    }, [shiftsByDate]);
+    };
 
+    const goToNextMonth = () => {
+        setCurrentDate(prev => {
+            const newDate = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+            return newDate;
+        });
+    };
+    
+    // ---------------------- レンダリング ----------------------
 
-    // ★ Calendarに渡すハンドラ 1: 月切り替え時の処理
-    const handleMonthChange = useCallback((year: number, month: number) => {
-        setCurrentDate(new Date(year, month - 1, 1));
-        setSelectedDate(null); // 日付選択をリセット
-        setFormData(defaultFormData);
-        setMessage(null);
+    const renderShiftInfo = (dateStr: string) => {
+        const shifts = shiftsByDate[dateStr];
+        if (!shifts || shifts.length === 0) {
+            return <span className="text-gray-400 text-xs">未提出</span>;
+        }
+
+        // 確定シフトがあればそれを最優先で表示
+        const confirmedShift = shifts.find(s => s.shift_type === 'confirmed');
+        if (confirmedShift) {
+            return (
+                <div className="text-xs font-bold text-green-600">
+                    確定: {confirmedShift.start_time.substring(0, 5)} - {confirmedShift.end_time.substring(0, 5)}
+                </div>
+            );
+        }
+
+        // 希望シフトがあればそれを表示
+        const requestedShift = shifts.find(s => s.shift_type === 'request');
+        if (requestedShift) {
+            // 休み('00:00'-'00:00')の判定
+            if (requestedShift.start_time.substring(0, 5) === '00:00' && requestedShift.end_time.substring(0, 5) === '00:00') {
+                return <span className="text-xs text-blue-500">休み希望</span>;
+            }
+            return (
+                <div className="text-xs text-yellow-600">
+                    希望: {requestedShift.start_time.substring(0, 5)} - {requestedShift.end_time.substring(0, 5)}
+                </div>
+            );
+        }
+        
+        return <span className="text-gray-400 text-xs">未提出</span>;
+    };
+    
+    // 時刻オプションの生成 (30分刻み)
+    const timeOptions = useMemo(() => {
+        const options = [];
+        for (let h = 0; h < 24; h++) {
+            for (let m = 0; m < 60; m += 30) {
+                const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                options.push(timeStr);
+            }
+        }
+        //options.push('00:00'); // 休み用として念のため再追加
+        return options;
     }, []);
 
-
-    // ★ Calendarに渡すハンドラ 2: 日付クリック時の処理（フォーム表示）
-    const handleDateClick = useCallback((dateStr: string) => {
-        // スタッフは自分のリクエスト（'request'または'day_off'）のみ編集対象
-        const existingShift = shiftsByDate[dateStr]?.find(s => s.shift_type !== 'confirmed'); 
-        
-        setSelectedDate(dateStr);
-        setMessage(null);
-        
-        // 既存のシフトがあればフォームに反映
-        if (existingShift) {
-            setFormData({
-                start_time: existingShift.start_time,
-                end_time: existingShift.end_time,
-                day_off: existingShift.shift_type === 'day_off',
-            });
-        } else {
-            // シフトがなければデフォルト値
-            setFormData(defaultFormData);
-        }
-    }, [shiftsByDate]);
-
-
-    // フォームの入力変更ハンドラ (変更なし)
-    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value, type } = e.target;
-        if (type === 'checkbox' && name === 'day_off') {
-            const isChecked = (e.target as HTMLInputElement).checked;
-            setFormData(prev => ({
-                ...prev,
-                day_off: isChecked,
-            }));
-            if (isChecked) {
-                setFormData(prev => ({
-                    ...prev,
-                    start_time: '00:00', 
-                    end_time: '00:00',
-                }));
-            }
-        } else {
-            setFormData(prev => ({ ...prev, [name]: value }));
-        }
-    };
-
-
-    // シフト提出ハンドラ (変更なし)
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedDate || isLoading) return;
-
-        setIsLoading(true);
-        setMessage(null);
-        setError(null);
-        
-        try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const endpoint = `${baseUrl}/shifts`; 
-
-            const shift_type = formData.day_off ? 'day_off' : 'request';
-            const submit_start_time = formData.day_off ? '00:00' : formData.start_time;
-            const submit_end_time = formData.day_off ? '00:00' : formData.end_time;
-
-            const payload = {
-                shift_date: selectedDate,
-                start_time: submit_start_time,
-                end_time: submit_end_time,
-                shift_type: shift_type
-            };
-            
-            const existingShift = shiftsByDate[selectedDate]?.find(s => s.shift_type !== 'confirmed'); 
-            const method = existingShift ? 'PUT' : 'POST';
-            const url = existingShift ? `${endpoint}/${existingShift.id}` : endpoint;
-
-
-            const res = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                credentials: 'include',
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || 'シフトの提出に失敗しました。');
-            }
-            
-            setMessage('シフトを提出・更新しました！');
-            await fetchShifts(currentYear, currentMonth);
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '不明なエラーが発生しました。');
-            setMessage(`提出に失敗: ${err instanceof Error ? err.message : '不明なエラー'}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
-    
-    // --- レンダー部分 ---
-    
-    if (error && !isLoading) {
-        return <p className="text-red-500 text-center mt-8">エラー: {error}</p>;
-    }
-    
     return (
-        <div className="flex flex-col lg:flex-row gap-6">
-            
-            {/* 1. カレンダー部分 (共通Calendarコンポーネントを使用) */}
-            <div className="lg:w-3/4 w-full">
-                <Calendar
-                    currentYear={currentYear}
-                    currentMonth={currentMonth}
-                    onMonthChange={handleMonthChange}
-                    onDateClick={handleDateClick}
-                    shiftsByDate={calendarShiftData}
-                    // スタッフ用のビューなので isAdminView は false (デフォルト)
-                />
+        <div className="flex **flex-row** gap-8">
+            {/* -------------------- カレンダー表示エリア -------------------- */}
+            <div className="**w-3/5** bg-white p-6 shadow-lg rounded-lg">
+                <div className="flex justify-between items-center mb-4">
+                    <button onClick={goToPreviousMonth} className="p-2 rounded-full hover:bg-gray-100">&lt; 前の月</button>
+                    <h2 className="text-xl font-semibold">{format(currentDate, 'yyyy年M月', { locale: ja })}</h2>
+                    <button onClick={goToNextMonth} className="p-2 rounded-full hover:bg-gray-100">次の月 &gt;</button>
+                </div>
+                
+                {isLoading ? (
+                    <div className="text-center py-8">ロード中...</div>
+                ) : error ? (
+                    <div className="text-center py-8 text-red-500">エラー: {error}</div>
+                ) : (
+                    <div className="grid grid-cols-7 text-center border-t border-l">
+                        {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
+                            <div key={day} className={`py-2 font-bold border-r border-b ${index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : ''}`}>
+                                {day}
+                            </div>
+                        ))}
+                        
+                        {/* 月の初めまでの空のマス */}
+                        {Array.from({ length: startingDayOfWeek }).map((_, index) => (
+                            <div key={`empty-${index}`} className="p-2 border-r border-b bg-gray-50"></div>
+                        ))}
+                        
+                        {/* 日付とシフト情報 */}
+                        {daysInMonth.map((day, index) => {
+                            const dateStr = format(day, 'yyyy-MM-dd');
+                            const isToday = isSameDay(day, new Date());
+                            const isSelected = selectedDate === dateStr;
+                            
+                            // 過去の日付はクリック不可
+                            const isPast = day.getTime() < new Date().setHours(0,0,0,0);
+
+                            return (
+                                <button 
+                                    key={dateStr}
+                                    onClick={() => !isPast && handleDayClick(day)}
+                                    className={`
+                                        p-2 h-24 border-r border-b text-left transition-all duration-150
+                                        ${isPast ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-indigo-50 hover:shadow-inner cursor-pointer'}
+                                        ${isToday ? 'border-2 border-red-500 bg-red-50' : ''}
+                                        ${isSelected ? 'bg-indigo-100 ring-2 ring-indigo-500' : ''}
+                                    `}
+                                    disabled={isPast}
+                                >
+                                    <div className={`text-sm font-semibold mb-1 ${day.getDay() === 0 ? 'text-red-600' : day.getDay() === 6 ? 'text-blue-600' : ''}`}>
+                                        {format(day, 'd')}
+                                    </div>
+                                    <div className="text-xs">
+                                        {renderShiftInfo(dateStr)}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
             
-            {/* 2. フォーム/詳細表示部分 (変更なし) */}
-            <div className="lg:w-1/4 w-full bg-white p-6 rounded-xl shadow-lg h-fit">
-                <h2 className="text-xl font-bold mb-4">シフト提出</h2>
-
+            {/* -------------------- シフト提出フォームエリア -------------------- */}
+            <div className="**w-2/5** bg-white p-6 shadow-lg rounded-lg sticky top-4 self-start">
+                <h3 className="text-xl font-semibold border-b pb-3 mb-4">シフト提出</h3>
+                
                 {selectedDate ? (
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <p className="text-lg font-semibold text-indigo-600 mb-4">{format(new Date(selectedDate), 'yyyy年M月d日 (EEE)', { locale: ja })}</p>
+                        <p className="text-lg font-bold">対象日: {format(new Date(selectedDate), 'yyyy年M月d日 (eee)', { locale: ja })}</p>
 
-                        <div className="space-y-3">
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    id="day_off"
-                                    name="day_off"
-                                    type="checkbox"
-                                    checked={formData.day_off}
-                                    onChange={handleFormChange}
-                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                />
-                                <label htmlFor="day_off" className="text-sm font-medium text-gray-700">この日は休みを希望する</label>
-                            </div>
-
-                            <div className="flex space-x-2">
-                                <label htmlFor="start_time" className="sr-only">開始時間</label>
-                                <input
-                                    id="start_time"
-                                    name="start_time"
-                                    type="time"
-                                    value={formData.start_time}
-                                    onChange={handleFormChange}
-                                    disabled={formData.day_off}
-                                    required={!formData.day_off}
-                                    className="block w-1/2 p-2 border border-gray-300 rounded"
-                                />
-                                <span className="p-2">-</span>
-                                <label htmlFor="end_time" className="sr-only">終了時間</label>
-                                <input
-                                    id="end_time"
-                                    name="end_time"
-                                    type="time"
-                                    value={formData.end_time}
-                                    onChange={handleFormChange}
-                                    disabled={formData.day_off}
-                                    required={!formData.day_off}
-                                    className="block w-1/2 p-2 border border-gray-300 rounded"
-                                />
-                            </div>
+                        <div className="flex gap-2 items-center">
+                            <label htmlFor="start_time" className="block text-sm font-medium w-1/4">開始時刻</label>
+                            <select
+                                id="start_time"
+                                value={startTime}
+                                onChange={(e) => {
+                                    setStartTime(e.target.value);
+                                    if (e.target.value === '00:00') setEndTime('00:00'); // 開始00:00なら終了も00:00に強制
+                                }}
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"
+                            >
+                                {timeOptions.map(time => (
+                                    <option key={time} value={time}>{time}</option>
+                                ))}
+                            </select>
                         </div>
 
+                        <div className="flex gap-2 items-center">
+                            <label htmlFor="end_time" className="block text-sm font-medium w-1/4">終了時刻</label>
+                            <select
+                                id="end_time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"
+                                disabled={startTime === '00:00'} // 休みの場合、終了時刻は変更不可
+                            >
+                                {timeOptions.map(time => (
+                                    <option key={time} value={time}>{time}</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2 pt-2">
+                            <input
+                                type="checkbox"
+                                id="day_off"
+                                checked={startTime === '00:00' && endTime === '00:00'}
+                                onChange={(e) => {
+                                    if (e.target.checked) {
+                                        setStartTime('00:00');
+                                        setEndTime('00:00');
+                                    } else {
+                                        setStartTime('');
+                                        setEndTime('');
+                                    }
+                                }}
+                                className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                            />
+                            <label htmlFor="day_off" className="text-sm font-medium text-gray-700">この日は休みを希望する</label>
+                        </div>
 
                         <button 
                             type="submit"
@@ -304,10 +363,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                         {message && (
                             <p className={`text-center text-sm ${message.includes('失敗') ? 'text-red-500' : 'text-green-500'}`}>{message}</p>
                         )}
-                        {error && (
-                            <p className="text-center text-sm text-red-500">{error}</p>
-                        )}
-
 
                         <button 
                             type="button"
