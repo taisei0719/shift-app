@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 import time
 
-load_dotenv()
+#load_dotenv()
 
 app = Flask(__name__)
 
