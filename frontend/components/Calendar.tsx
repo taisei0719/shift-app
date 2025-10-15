@@ -1,121 +1,247 @@
-// frontend/components/Calendar.tsx (AdminCalendarのロジックを移植)
+// frontend/components/Calendar.tsx
+
 "use client";
 
-import React from "react";
-import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation"; // useRouterも使う
+import React, { useMemo } from "react";
+import Link from "next/link"; // Linkは管理者ビューでのみ使用
+import { 
+    format, 
+    startOfMonth, 
+    endOfMonth, 
+    eachDayOfInterval, 
+    getDay, 
+    isWeekend, 
+    subMonths, 
+    addMonths,
+    isToday 
+} from 'date-fns';
+import { ja } from 'date-fns/locale';
 
-interface Day {
+// --- 型定義 ---
+interface DayData {
     day: number | "";
     month: number;
-    dateStr: string;
+    dateStr: string; // YYYY-MM-DD
 }
 
-interface CalendarProps {
-    base_path: string; // 遷移先のベースパス (例: /admin/day または /staff/shift_input)
-    current_page_path: string; // 月移動用の現在のページパス (例: /admin または /staff)
+// シフト表示用のデータ構造
+interface ShiftDisplayData {
+    [date: string]: {
+        shifts: { 
+            start: string, 
+            end: string, 
+            type: 'request' | 'confirmed' | 'day_off' 
+        }[];
+    };
 }
 
-export default function Calendar({ base_path, current_page_path }: CalendarProps) {
-    const searchParams = useSearchParams();
-    const router = useRouter(); // routerを使って日付クリックを処理する
+// ★ 修正後のCalendarProps ★
+export interface CalendarProps {
+    currentYear: number;
+    currentMonth: number;
+    // 月切り替え時のコールバック
+    onMonthChange: (year: number, month: number) => void; 
+    // 日付クリック時のコールバック (日付文字列を親に返す)
+    onDateClick: (dateStr: string, isCurrentMonth: boolean) => void; 
+    // 日付の下に表示するシフトデータ
+    shiftsByDate: ShiftDisplayData; 
+    // 管理者ビュー用 (スタッフビューのロジックが異なるため)
+    isAdminView?: boolean; 
+    // 管理者ビューでユーザー名を表示する場合に利用
+    staffNamesByDate?: { [date: string]: string[] }; 
+}
 
-    // URLから年/月を取得 (パラメーターがない場合は現在の日付を使う)
-    const yearParam = searchParams.get("year");
-    const monthParam = searchParams.get("month");
+// 曜日の表示
+const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
 
-    const now = new Date();
-    const year = yearParam ? parseInt(yearParam) : now.getFullYear();
-    const month = monthParam ? parseInt(monthParam) : now.getMonth() + 1;
+export default function Calendar({ 
+    currentYear, 
+    currentMonth, 
+    onMonthChange, 
+    onDateClick, 
+    shiftsByDate, 
+    isAdminView = false,
+    staffNamesByDate = {}
+}: CalendarProps) {
 
-    // 前月・次月計算
-    const prevDate = new Date(year, month - 2);
+    // --- 月の計算 ---
+    const monthStart = new Date(currentYear, currentMonth - 1, 1);
+    const monthEnd = endOfMonth(monthStart);
+    
+    const prevDate = subMonths(monthStart, 1);
+    const nextDate = addMonths(monthStart, 1);
+    
     const prevYear = prevDate.getFullYear();
     const prevMonth = prevDate.getMonth() + 1;
 
-    const nextDate = new Date(year, month);
     const nextYear = nextDate.getFullYear();
     const nextMonth = nextDate.getMonth() + 1;
 
-    // ★ 修正: カレンダーの自動生成ロジックをここに移植
-    const generateDays = (y: number, m: number): Day[] => {
-        const firstDay = new Date(y, m - 1, 1);
-        const lastDay = new Date(y, m, 0);
-        const daysArray: Day[] = [];
 
-        // 前月の日付の空欄を埋める
-        for (let i = 0; i < firstDay.getDay(); i++) {
-            daysArray.push({ day: "", month: m - 1, dateStr: "" });
+    // --- カレンダーデータの生成 ---
+    const calendarDays = useMemo(() => {
+        const startDayOfWeek = getDay(monthStart); // 0: 日曜日, 6: 土曜日
+        const endDayOfWeek = getDay(monthEnd);
+
+        // 前月の日付
+        const prevMonthEnd = subMonths(monthStart, 1);
+        const prevMonthDays = [];
+        for (let i = startDayOfWeek; i > 0; i--) {
+            const date = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), prevMonthEnd.getDate() - i + 1);
+            prevMonthDays.push({ 
+                day: date.getDate(), 
+                month: date.getMonth() + 1,
+                dateStr: format(date, 'yyyy-MM-dd')
+            });
         }
 
-        // 今月の日付を生成
-        for (let d = 1; d <= lastDay.getDate(); d++) {
-            const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-            daysArray.push({ day: d, month: m, dateStr });
+        // 当月の日付
+        const currentMonthDays = eachDayOfInterval({ start: monthStart, end: monthEnd }).map(date => ({
+            day: date.getDate(),
+            month: date.getMonth() + 1,
+            dateStr: format(date, 'yyyy-MM-dd')
+        }));
+
+        // 次月の日付
+        const nextMonthStart = addMonths(monthEnd, 1);
+        const nextMonthDays = [];
+        for (let i = 1; (prevMonthDays.length + currentMonthDays.length + i) % 7 !== 0 || i < 7 - endDayOfWeek; i++) {
+            const date = new Date(nextMonthStart.getFullYear(), nextMonthStart.getMonth(), i);
+            nextMonthDays.push({ 
+                day: date.getDate(), 
+                month: date.getMonth() + 1,
+                dateStr: format(date, 'yyyy-MM-dd')
+            });
         }
 
-        // 次月の日付の空欄を埋める
-        while (daysArray.length % 7 !== 0) {
-            daysArray.push({ day: "", month: m + 1, dateStr: "" });
+        const allDays = [...prevMonthDays, ...currentMonthDays, ...nextMonthDays];
+        const weeks = [];
+        for (let i = 0; i < allDays.length; i += 7) {
+            weeks.push(allDays.slice(i, i + 7));
         }
+        return weeks;
+    }, [currentYear, currentMonth]);
 
-        return daysArray;
-    };
-    
-    // カレンダーの日付データを生成
-    const calendarDays = generateDays(year, month);
 
-    const handleDateClick = (dateStr: string) => {
-        // base_path を使って指定されたURLに遷移
-        router.push(`${base_path}/${dateStr}`); 
-    };
-
+    // --- レンダー部分 ---
     return (
-        <div className="calendar-container">
-            <h1>{year}年 {month}月</h1>
-
-            {/* 月の移動リンク */}
-            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", margin: "10px 0" }}>
-                <Link href={`${current_page_path}?year=${prevYear}&month=${prevMonth}`}>← 前の月</Link>
-                <Link href={`${current_page_path}?year=${nextYear}&month=${nextMonth}`}>次の月 →</Link>
+        <div className="bg-white p-6 rounded-xl shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+                <button 
+                    onClick={() => onMonthChange(prevYear, prevMonth)} 
+                    className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full transition"
+                >
+                    &lt; 前月
+                </button>
+                <h2 className="text-xl font-bold">
+                    {format(monthStart, 'yyyy年 M月', { locale: ja })}
+                </h2>
+                <button 
+                    onClick={() => onMonthChange(nextYear, nextMonth)} 
+                    className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full transition"
+                >
+                    次月 &gt;
+                </button>
             </div>
-            
-            {/* 曜日ヘッダー */}
-            <table border={1} style={{ width: "100%", textAlign: "center", borderCollapse: "collapse" }}>
+
+            <table className="w-full border-collapse">
                 <thead>
-                    <tr>
-                        {["日", "月", "火", "水", "木", "金", "土"].map(dayName => (
-                            <th key={dayName} style={{ background: '#eee', padding: '10px' }}>{dayName}</th>
+                    <tr className="bg-indigo-50 text-indigo-800">
+                        {weekDays.map(day => (
+                            <th key={day} className="py-2 border-b text-sm font-medium">{day}</th>
                         ))}
                     </tr>
                 </thead>
                 <tbody>
-                    {/* カレンダー本体 */}
-                    {Array.from({ length: Math.ceil(calendarDays.length / 7) }).map((_, rowIndex) => (
-                        <tr key={rowIndex}>
-                            {calendarDays.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, idx) => (
-                                <td 
-                                    key={day.dateStr || idx}
-                                    style={{ 
-                                        padding: '15px 5px', 
-                                        cursor: day.day && day.month === month ? "pointer" : "default",
-                                        background: day.month === month ? "white" : "#f5f5f5"
-                                    }}
-                                    onClick={() => day.dateStr && handleDateClick(day.dateStr)}
-                                >
-                                    {/* 日付の数字 */}
-                                    <div style={{ fontWeight: 'bold' }}>{day.day || ""}</div>
-                                    
-                                    {/* 詳細/遷移の表示 (見やすいように「詳細」の代わりにクリック可能にする) */}
-                                    {day.month === month && day.day ? (
-                                        <div style={{ fontSize: '12px', color: 'blue' }}>
-                                            {/* (シフトデータ表示エリア) */}
-                                        </div>
-                                    ) : (
-                                        <div style={{ fontSize: '12px', color: 'transparent' }}>.</div> // スペース確保用
-                                    )}
-                                </td>
-                            ))}
+                    {calendarDays.map((week, idx) => (
+                        <tr key={idx} className="h-24">
+                            {week.map((day, dayIdx) => {
+                                const isCurrentMonth = day.month === currentMonth;
+                                const isSelected = false; // 選択状態のスタイルは親コンポーネントで管理しても良い
+                                const isWeekendDay = dayIdx === 0 || dayIdx === 6; // 日曜日または土曜日
+                                const todayDate = format(new Date(), 'yyyy-MM-dd');
+                                const isTodayDay = isToday(new Date(day.dateStr));
+                                
+                                const shiftData = shiftsByDate[day.dateStr]?.shifts || [];
+                                const hasConfirmed = shiftData.some(s => s.type === 'confirmed');
+                                const hasRequest = shiftData.some(s => s.type === 'request');
+                                const hasDayOff = shiftData.some(s => s.type === 'day_off');
+
+                                let cellClasses = `p-1 border text-center align-top transition duration-150 relative `;
+
+                                if (isCurrentMonth) {
+                                    cellClasses += `bg-white cursor-pointer hover:bg-indigo-50 `;
+                                } else {
+                                    cellClasses += `bg-gray-50 text-gray-400 `;
+                                }
+                                
+                                if (isTodayDay && isCurrentMonth) {
+                                    cellClasses += `border-2 border-indigo-500 ring-2 ring-indigo-300`;
+                                }
+                                if (isWeekendDay && isCurrentMonth) {
+                                    cellClasses += dayIdx === 0 ? 'text-red-600' : 'text-blue-600';
+                                }
+                                
+                                // シフト内容の表示
+                                const shiftContent = (
+                                    <div className="mt-1 space-y-0.5">
+                                        {isAdminView ? (
+                                            <>
+                                                {shiftData.length > 0 && <span className="block text-xs font-medium text-green-700">シフト有 ({shiftData.length}件)</span>}
+                                                {staffNamesByDate[day.dateStr]?.slice(0, 2).map((name, i) => (
+                                                    <p key={i} className="text-xs text-gray-600 truncate">{name}</p>
+                                                ))}
+                                                {staffNamesByDate[day.dateStr]?.length > 2 && <p className="text-xs text-gray-500">他{staffNamesByDate[day.dateStr].length - 2}名</p>}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {hasConfirmed && <span className="block text-xs font-bold text-red-500">【確定】</span>}
+                                                {!hasConfirmed && hasDayOff && <span className="block text-xs font-medium text-blue-500">【休み希望】</span>}
+                                                {!hasConfirmed && hasRequest && (
+                                                    shiftData.filter(s => s.type === 'request').map((s, i) => (
+                                                        <p key={i} className="text-xs text-indigo-600 font-medium">
+                                                            {s.start.substring(0, 5)}~{s.end.substring(0, 5)}
+                                                        </p>
+                                                    ))
+                                                )}
+                                                {!hasConfirmed && !hasRequest && !hasDayOff && isCurrentMonth && <p className="text-xs text-gray-400">未提出</p>}
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                                
+                                // クリックハンドラ: 当月の日付のみクリック可能
+                                const handleCellClick = () => {
+                                    if (day.dateStr) {
+                                        onDateClick(day.dateStr, isCurrentMonth);
+                                    }
+                                };
+                                
+                                return (
+                                    <td 
+                                        key={day.dateStr || idx}
+                                        className={cellClasses}
+                                        onClick={isCurrentMonth ? handleCellClick : undefined}
+                                    >
+                                        {/* 日付の数字 */}
+                                        <div className="text-sm font-semibold">{day.day || ""}</div>
+                                        
+                                        {/* シフト情報 */}
+                                        {isCurrentMonth && shiftContent}
+                                        
+                                        {/* 管理者ビューの場合のリンク（スタッフビューでは不要） */}
+                                        {isCurrentMonth && isAdminView && day.dateStr && (
+                                            <Link 
+                                                href={`/admin/day/${day.dateStr}`} 
+                                                className="block mt-1 text-xs text-indigo-500 hover:text-indigo-700"
+                                                onClick={(e) => e.stopPropagation()} // セルクリックとリンククリックの重複防止
+                                            >
+                                                詳細
+                                            </Link>
+                                        )}
+                                    </td>
+                                );
+                            })}
                         </tr>
                     ))}
                 </tbody>
