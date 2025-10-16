@@ -2,10 +2,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-// ContextからuseUserをインポート
+import { useRouter, useParams } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext'; 
-// APIクライアントをインポート
 import { api } from '@/lib/api'; 
 
 // データ型定義 (バックエンドのAPIレスポンスに合わせる)
@@ -23,12 +21,17 @@ interface ShopData {
 }
 
 // Next.jsのビルドエラー回避のため、型はインラインで定義
-export default function ShopUsersPage({ params }: { params: { shopId: string } }) {
+export default function ShopUsersPage() {
     const router = useRouter();
-    // ★ 修正: useUserから loading を取得する
-    const { user, loading } = useUser(); 
-    const shopId = parseInt(params.shopId);
+    const params = useParams();
 
+    // params.shopId の安全な抽出と型変換 (useParamsはstring | string[] | undefinedを返すため)
+    const rawShopId = Array.isArray(params.shopId) ? params.shopId[0] : params.shopId;
+    // rawShopId が存在すれば数値に変換し、なければ null とする
+    const shopId = rawShopId ? parseInt(rawShopId) : null;
+    
+    const { user, loading } = useUser(); 
+    
     const [shopData, setShopData] = useState<ShopData | null>(null);
     const [usersInShop, setUsersInShop] = useState<ShopUser[]>([]);
     // APIデータ取得用のローディングステート
