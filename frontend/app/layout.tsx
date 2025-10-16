@@ -120,7 +120,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
+    <html lang="ja" className="font-[Arial,sans-serif]">
       <head>
         <title>BestShift</title>
       </head>

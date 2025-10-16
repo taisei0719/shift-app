@@ -17,10 +17,5 @@
 
 
 
-body {
-    font-family: Arial, sans-serif;
-    /* 背景色は layout.tsx で bg-gray-50 や bg-white を使う */
-    margin: 0;
-    padding: 0;
-}
+
 
