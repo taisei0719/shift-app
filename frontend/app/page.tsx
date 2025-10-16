@@ -1,3 +1,5 @@
+// frontend/app/page.tsx
+
 "use client";
 
 import React, { useState } from "react";
@@ -22,30 +24,60 @@ export default function Login() {
       }
       router.push(res.data.user.role === "staff" ? "/staff" : "/admin");
     } catch (err) {
-      const error = err as any; // ★この行を追加！errをanyとして扱う
+      const error = err as any;
       setError(error.response?.data?.error || "ログインに失敗しました");
     }
   };
 
   return (
-    <div className="login-container">
-      <h1>ログイン</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <label>
-          名前またはメールアドレス:<br />
-          <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+    // 🚨 修正箇所1: login-container を削除し、Tailwindで中央配置とカードデザインを適用
+    // w-full max-w-md で幅を制限し、p-8でパディング、bg-whiteで背景色、shadow-xlで影
+    <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-xl mx-auto my-16">
+      <h1 className="text-3xl font-bold mb-6 text-center text-indigo-700">
+        ログイン
+      </h1>
+      {error && <p className="text-red-600 text-center mb-4">{error}</p>}
+      
+      <form onSubmit={handleSubmit} className="space-y-4"> {/* space-y-4でフォーム要素間にスペース */}
+        <label className="block text-gray-700 font-medium">
+          名前またはメールアドレス:
+          {/* 🚨 修正箇所2: inputにTailwindクラスを適用 */}
+          <input 
+            type="text" 
+            value={identifier} 
+            onChange={(e) => setIdentifier(e.target.value)} 
+            required 
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
         </label>
-        <br />
-        <label>
-          パスワード:<br />
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+
+        <label className="block text-gray-700 font-medium">
+          パスワード:
+          {/* inputにTailwindクラスを適用 */}
+          <input 
+            type="password" 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            required 
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
         </label>
-        <br />
-        <button type="submit">ログイン</button>
+        
+        {/* buttonにTailwindクラスを適用 */}
+        <button 
+          type="submit" 
+          className="w-full py-2 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-md shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+          ログイン
+        </button>
       </form>
-      <div className="center-message">
-        まだアカウントをお持ちでない方は <a href="/register">ユーザー登録</a>
+      
+      {/* center-message を削除し、Tailwindで中央配置とリンクスタイルを適用 */}
+      <div className="mt-6 text-center text-sm text-gray-600">
+        まだアカウントをお持ちでない方は 
+        <a href="/register" className="text-indigo-600 hover:text-indigo-800 hover:underline ml-1 font-medium">
+          ユーザー登録
+        </a>
       </div>
     </div>
   );
