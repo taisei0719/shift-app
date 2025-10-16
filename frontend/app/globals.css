@@ -1,15 +1,4 @@
 @tailwind base;
-
-@layer components {
-    .nav-link {
-        @apply text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200;
-        /* モバイルナビゲーションバーのスタイル調整 */
-        @apply lg:hover:bg-indigo-600 lg:active:bg-indigo-800;
-        /* モバイルではアイコンがないため、Text Labelとしてシンプルに中央揃え */
-        @apply text-center text-sm lg:text-base; 
-    }
-}
-
 @tailwind components;
 @tailwind utilities;
 

@@ -8,6 +8,11 @@ import { usePathname } from "next/navigation";
 import { useUser, UserProvider } from "./context/UserContext";
 import axios from "axios";
 
+// nav-link に相当するクラスを定義
+const NavLinkClasses = "text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 lg:hover:bg-indigo-600 lg:active:bg-indigo-800 text-center text-xs lg:text-base flex-1 lg:flex-none";
+// モバイルで非表示にするクラス
+const HiddenOnMobile = "hidden lg:block";
+
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const pathname = usePathname();
@@ -55,23 +60,34 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               ">
                 {user.role === "admin" ? (
                   <>
-                    <Link href="/admin" className="nav-link">カレンダー</Link>
-                    {/* 他のリンクも同様に nav-link クラスを適用 */}
-                    <Link href="/shop_register" className="nav-link">店舗登録</Link>
-                    <Link href="/edit_account" className="nav-link">アカウント</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}`} className="nav-link">店舗詳細</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className="nav-link">従業員一覧</Link>
-                    <Link href="/admin/join_requests" className="nav-link">参加リクエスト</Link>
+                    <Link href="/admin" className={NavLinkClasses}>カレンダー</Link>
+                    <Link href="/shop_register" className={`${NavLinkClasses} ${HiddenOnMobile}`}>店舗登録</Link>
+                    <Link href="/edit_account" className={NavLinkClasses}>アカウント</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`} className={NavLinkClasses}>店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className={`${NavLinkClasses} ${HiddenOnMobile}`}>従業員一覧</Link>
+                    <Link href="/admin/join_requests" className={`${NavLinkClasses} ${HiddenOnMobile}`}>参加リクエスト</Link>
                   </>
                 ) : (
                   <>
-                    <Link href="/staff" className="nav-link">スタッフトップ</Link>
-                    <Link href="/staff_shop_register" className="nav-link">店舗登録</Link>
-                    <Link href="/edit_account" className="nav-link">アカウント</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}`} className="nav-link">店舗詳細</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className="nav-link">従業員一覧</Link>
+                    <Link href="/staff" className={NavLinkClasses}>スタッフトップ</Link>
+                    <Link href="/staff_shop_register" className={`${NavLinkClasses} ${HiddenOnMobile}`}>店舗登録</Link>
+                    <Link href="/edit_account" className={NavLinkClasses}>アカウント</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`} className={NavLinkClasses}>店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className={`${NavLinkClasses} ${HiddenOnMobile}`}>従業員一覧</Link>
                   </>
                 )}
+
+                {/* モバイルログアウトボタンをナビバー内に配置 */}
+                <button 
+                    onClick={handleLogout} 
+                    className="
+                        flex-1 py-2 px-4 text-xs font-semibold
+                        bg-red-500 hover:bg-red-600 active:bg-red-700
+                        rounded-lg text-white transition-colors duration-200 lg:hidden
+                    "
+                >
+                    ログアウト
+                </button>
               </div>
 
               {/* ログアウトボタン (モバイルでは非表示、PCでは下部に固定) */}
