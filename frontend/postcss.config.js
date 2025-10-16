@@ -1,10 +1,9 @@
 // frontend/postcss.config.js
 
-const config = {
-  plugins: {   
-    '@tailwindcss/postcss': {},  // PostCSSにTailwind CSSプラグインを読み込ませる（キーは文字列 'tailwindcss'）   
-    'autoprefixer': {},  // ベンダープレフィックス自動追加用のAutoprefixerも追加するのが標準
+module.exports = {
+  plugins: {
+    // ★★★ Next.jsの指示に従い、文字列のキーでプラグイン名を渡す ★★★
+    '@tailwindcss/postcss': {}, 
+    'autoprefixer': {},
   },
-}
-
-module.exports = config;
+};
