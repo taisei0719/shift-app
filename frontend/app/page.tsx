@@ -30,7 +30,7 @@ export default function Login() {
   };
 
   return (
-    // 🚨 修正箇所1: login-container を削除し、Tailwindで中央配置とカードデザインを適用
+    // login-container を削除し、Tailwindで中央配置とカードデザインを適用
     // w-full max-w-md で幅を制限し、p-8でパディング、bg-whiteで背景色、shadow-xlで影
     <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-xl mx-auto my-16">
       <h1 className="text-3xl font-bold mb-6 text-center text-indigo-700">
@@ -41,7 +41,7 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-4"> {/* space-y-4でフォーム要素間にスペース */}
         <label className="block text-gray-700 font-medium">
           名前またはメールアドレス:
-          {/* 🚨 修正箇所2: inputにTailwindクラスを適用 */}
+          {/* inputにTailwindクラスを適用 */}
           <input 
             type="text" 
             value={identifier} 
