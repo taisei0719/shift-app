@@ -1,5 +1,10 @@
-const config = {
-  plugins: ["@tailwindcss/postcss"],
-};
+// frontend/postcss.config.js
 
-export default config;
+const config = {
+  plugins: {   
+    'tailwindcss': {},  // PostCSSにTailwind CSSプラグインを読み込ませる（キーは文字列 'tailwindcss'）   
+    'autoprefixer': {},  // ベンダープレフィックス自動追加用のAutoprefixerも追加するのが標準
+  },
+}
+
+module.exports = config;
