@@ -748,6 +748,46 @@ def update_shop_detail(shop_id):
     
     return jsonify({"message": "店舗情報を更新しました"})
 
+# -------------------- API: 店舗の従業員一覧取得 --------------------
+@app.route("/api/shops/<int:shop_id>/users", methods=["GET"])
+def get_shop_users(shop_id):
+    # 1. 認証チェック
+    if "user_id" not in session:
+        return jsonify({"error": "ログインが必要です"}), 401
+
+    current_user_id = session.get("user_id")
+    current_user = db.session.get(User, current_user_id)
+    
+    # 2. 権限チェック: ユーザーが要求された店舗に所属しているか？
+    if current_user.shop_id != shop_id:
+        return jsonify({"error": "この店舗の情報にアクセスする権限がありません"}), 403
+
+    # 3. 店舗に所属する全ユーザーを取得
+    # role='owner' のユーザーがオーナーである。
+    users_in_shop = User.query.filter_by(shop_id=shop_id).all()
+    
+    user_list = []
+    for user in users_in_shop:
+        user_list.append({
+            "user_id": user.id,
+            "user_name": user.name,
+            "role": user.role,
+            "is_owner": user.role == 'owner' # オーナーかどうかのフラグ
+        })
+
+    # 4. 店舗情報を取得（ユーザー情報と合わせてフロントに渡す）
+    shop = db.session.get(Shop, shop_id)
+    shop_info = {
+        "id": shop.id,
+        "name": shop.name,
+        "location": shop.location
+    }
+
+    return jsonify({
+        "shop": shop_info,
+        "users": user_list
+    }), 200
+
 # -------------------- API: セッション取得 --------------------
 @app.route("/api/session")
 def get_session():
