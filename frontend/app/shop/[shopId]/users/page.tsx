@@ -3,7 +3,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/app/context/UserContext';
+// ContextからuseUserをインポート
+import { useUser } from '@/app/context/UserContext'; 
+// APIクライアントをインポート
 import { api } from '@/lib/api'; 
 
 // データ型定義 (バックエンドのAPIレスポンスに合わせる)
@@ -20,33 +22,40 @@ interface ShopData {
     location: string;
 }
 
-interface UserListPageProps {
-    params: {
-        shopId: string;
-    };
-}
-
-export default function ShopUsersPage({ params }: UserListPageProps) {
+// Next.jsのビルドエラー回避のため、型はインラインで定義
+export default function ShopUsersPage({ params }: { params: { shopId: string } }) {
     const router = useRouter();
-    const { user, isLoading: isUserLoading } = useUser();
+    // ★ 修正: useUserから loading を取得する
+    const { user, loading } = useUser(); 
     const shopId = parseInt(params.shopId);
 
     const [shopData, setShopData] = useState<ShopData | null>(null);
     const [usersInShop, setUsersInShop] = useState<ShopUser[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    // APIデータ取得用のローディングステート
+    const [isLoading, setIsLoading] = useState(true); 
     const [error, setError] = useState<string | null>(null);
 
     // 認証とデータ取得
     useEffect(() => {
-        if (isUserLoading || !user) return;
+        // ★ 修正: Contextのloadingがtrueの間は待機する
+        if (loading) return; 
         
-        // ユーザーがまだロードされていない、または店舗未所属の場合はリダイレクト
+        // ユーザーがロード完了後、未ログインの場合はトップへリダイレクト
+        if (!user) {
+            router.push('/'); 
+            return;
+        }
+
+        // ログイン済みだが、店舗未所属の場合はリダイレクト
+        // URLのshopIdはあくまで参照用なので、自分の所属shop_idがnullでないかを見る
         if (user.shop_id === null) {
-            router.push(`/shop/${shopId}/page`); // 元の未所属ページへ
+            // ★ リダイレクト先を /staff_top など、適切なページに調整してな
+            router.push(`/shop/${shopId}/page`); 
             return;
         }
 
         // アクセス権限チェック (URLのshopIdとユーザーの所属shopIdが一致しない場合はエラー)
+        // URLパラメータはstring、user.shop_idはnumberなので型を合わせる
         if (user.shop_id !== shopId) {
             setError("アクセス権限がありません。所属店舗の情報を確認してください。");
             setIsLoading(false);
@@ -56,7 +65,8 @@ export default function ShopUsersPage({ params }: UserListPageProps) {
         // 従業員一覧データを取得
         const fetchUsers = async () => {
             try {
-                const response = await api.get(`/shops/${shopId}/users`);
+                // api.get() は withCredentials が設定されたクライアントであることを前提
+                const response = await api.get(`/shops/${shopId}/users`); 
                 
                 if (response.status === 200) {
                     setShopData(response.data.shop);
@@ -79,10 +89,12 @@ export default function ShopUsersPage({ params }: UserListPageProps) {
         };
 
         fetchUsers();
-    }, [user, isUserLoading, shopId, router]);
+    // ★ 修正: 依存配列に loading を追加する
+    }, [user, loading, shopId, router]);
 
 
-    if (isLoading || isUserLoading) {
+    // ★ 修正: Contextの loading と APIデータ取得の isLoading のどちらかがtrueなら表示
+    if (loading || isLoading) {
         return <div className="p-6 text-center">データを読み込み中...</div>;
     }
 
@@ -121,7 +133,6 @@ export default function ShopUsersPage({ params }: UserListPageProps) {
                                 )}
                             </span>
                         </div>
-                        {/* (ここに編集ボタンなどを追加しても良い) */}
                     </div>
                 ))}
             </div>

@@ -7,6 +7,7 @@ import axios from "axios";
 
 // ★ 修正: shop_request_code を UserInfo に追加
 interface UserInfo {
+  user_id: number;
   user_name: string;
   role: "admin" | "staff";
   shop_name?: string | null; // shop_name は null の可能性もあるため | null を追加
