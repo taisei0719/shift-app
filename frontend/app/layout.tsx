@@ -33,7 +33,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 {user.role === "admin" ? (
                   <>
                     <Link href="/admin">カレンダー</Link>
-                    <Link href="/admin/day/today">シフト確認</Link>
                     <Link href="/shop_register">店舗登録</Link>
                     <Link href="/edit_account">アカウント</Link>
                     <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
