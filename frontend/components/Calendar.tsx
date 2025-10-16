@@ -37,7 +37,7 @@ export default function Calendar({ base_path, current_page_path }: CalendarProps
     const nextYear = nextDate.getFullYear();
     const nextMonth = nextDate.getMonth() + 1;
 
-    // ★ 修正: カレンダーの自動生成ロジックをここに移植
+    // カレンダーの自動生成ロジック
     const generateDays = (y: number, m: number): Day[] => {
         const firstDay = new Date(y, m - 1, 1);
         const lastDay = new Date(y, m, 0);

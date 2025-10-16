@@ -1,0 +1,179 @@
+/* frontend/app/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全体設定 */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    min-height: 100vh;
+    flex-direction: row; /* サイドバー＋メイン */
+}
+
+/* サイドバー（ログイン中ユーザー情報表示用） */
+.sidebar {
+    width: 220px;
+    background-color: #150570;
+    color: white;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.sidebar .user-info {
+    margin-bottom: 30px;
+}
+
+.sidebar .user-info p {
+    margin: 5px 0;
+    font-weight: bold;
+}
+
+.sidebar a {
+    color: white;
+    text-decoration: none;
+    margin: 5px 0;
+    padding: 5px 0;
+    display: block;
+}
+
+.sidebar a:hover {
+    color: #4CAF50;
+}
+
+/* メインコンテンツ */
+.main-content {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* 中央寄せ */
+}
+
+/* 共通ヘッダー */
+.header {
+    padding: 10px 0;
+    font-size: 1.5em;
+    font-weight: bold;
+    text-align: center;
+    background-color: #150570;
+    color: white;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+/* フォーム */
+form {
+    width: 100%;
+    max-width: 400px;
+    margin: 20px 0;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+input[type="text"], input[type="password"], input[type="date"], select {
+    width: 100%;
+    padding: 8px;
+    margin: 6px 0 12px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+button {
+    width: 100%;
+    background-color: #150570;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #0f0450;
+}
+
+/* リンク（フォーム内専用） */
+form a {
+    display: block;
+    text-align: center;
+    margin-top: 15px;
+    color: #150570;
+    text-decoration: none;
+}
+
+form a:hover {
+    text-decoration: underline;
+}
+
+/* テーブル */
+table {
+    width: 100%;
+    margin: 20px 0;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    font-size: 14px;
+}
+
+th {
+    background-color: #150570;
+    color: white;
+    padding: 12px;
+}
+
+td {
+    padding: 10px;
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+}
+
+tr:nth-child(even) td {
+    background-color: #f9f9f9;
+}
+
+tr:hover td {
+    background-color: #e0f7fa;
+}
+
+/* フラッシュメッセージ */
+.flash {
+    background-color: #ff9800;
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    margin: 10px auto;
+    max-width: 400px;
+    width: 90%;
+}
+
+/* レスポンシブ調整 */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-around;
+    }
+
+    .main-content {
+        align-items: stretch;
+        padding: 10px;
+    }
+}

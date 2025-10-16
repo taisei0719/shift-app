@@ -1,3 +1,5 @@
+// frontend/app/layout.tsx
+
 "use client";
 
 import "./globals.css";
@@ -15,58 +17,104 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     window.location.href = "/";
   };
 
+  // 全体のコンテナをflexにし、背景色を設定
   return (
-    <>
-        <div className="sidebar">
+    <div className="flex min-h-screen bg-gray-50">
+        {/*サイドバーのモダン化*/}
+        <div className="
+            flex flex-col 
+            w-64 min-w-[256px] 
+            bg-indigo-700 text-white 
+            p-6 shadow-2xl z-10 
+            transition-all duration-300
+            
+            /* モバイルレイアウト: 画面下部にBottom Barとして固定 */
+            fixed bottom-0 left-0 right-0 
+            h-16 lg:h-auto lg:relative 
+            lg:flex-col lg:justify-start
+            lg:shadow-none
+        ">
           {user ? (
             <>
-              <div className="user-info">
-                <p>
-                  <strong>ログイン中:</strong>
+              {/* ユーザー情報 (モバイルでは非表示) */}
+              <div className="user-info mb-8 hidden lg:block">
+                <p className="text-lg font-bold">
+                  ログイン中:
                 </p>
-                <p>{user.user_name}</p>
-                <p>役割: {user.role}</p>
-                <p>所属店舗: {user.shop_name || "未登録"}</p>
+                <p className="text-xl font-extrabold mt-1">{user.user_name}</p>
+                <p className="text-sm mt-1">役割: {user.role}</p>
+                <p className="text-sm mt-1">店舗: {user.shop_name || "未登録"}</p>
               </div>
 
-              <div className="nav-links">
+              {/* ナビゲーションリンク (PCとモバイルで表示を切り替え) */}
+              <div className="
+                nav-links 
+                flex flex-row space-x-4 
+                lg:flex-col lg:space-x-0 lg:space-y-3 
+                w-full lg:flex-1 lg:overflow-y-auto
+              ">
                 {user.role === "admin" ? (
                   <>
-                    <Link href="/admin">カレンダー</Link>
-                    <Link href="/shop_register">店舗登録</Link>
-                    <Link href="/edit_account">アカウント</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}/users`}>従業員一覧</Link>
-                    <Link href="/admin/join_requests">参加リクエスト</Link>
+                    <Link href="/admin" className="nav-link">カレンダー</Link>
+                    {/* 他のリンクも同様に nav-link クラスを適用 */}
+                    <Link href="/shop_register" className="nav-link">店舗登録</Link>
+                    <Link href="/edit_account" className="nav-link">アカウント</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`} className="nav-link">店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className="nav-link">従業員一覧</Link>
+                    <Link href="/admin/join_requests" className="nav-link">参加リクエスト</Link>
                   </>
                 ) : (
                   <>
-                    <Link href="/staff">スタッフトップ</Link>
-                    <Link href="/staff_shop_register">店舗登録</Link>
-                    <Link href="/edit_account">アカウント</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}`}>店舗詳細</Link>
-                    <Link href={`/shop/${user.shop_id || "unknown"}/users`}>従業員一覧</Link>
+                    <Link href="/staff" className="nav-link">スタッフトップ</Link>
+                    <Link href="/staff_shop_register" className="nav-link">店舗登録</Link>
+                    <Link href="/edit_account" className="nav-link">アカウント</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}`} className="nav-link">店舗詳細</Link>
+                    <Link href={`/shop/${user.shop_id || "unknown"}/users`} className="nav-link">従業員一覧</Link>
                   </>
                 )}
               </div>
 
-              <button onClick={handleLogout} className="logout-btn">
+              {/* ログアウトボタン (モバイルでは非表示、PCでは下部に固定) */}
+              <button 
+                onClick={handleLogout} 
+                className="
+                    mt-auto py-2 px-4 
+                    bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 
+                    rounded-full text-white font-semibold 
+                    shadow-md transition-colors duration-200
+                    hidden lg:block
+                "
+              >
                 ログアウト
               </button>
             </>
           ) : (
-            <div className="not-logged-in">
-              <p>未ログイン</p>
-              {pathname !== "/" && <Link href="/">ログイン</Link>}
+            <div className="not-logged-in text-center flex-1 flex flex-col justify-center">
+              <p className="text-lg font-bold">未ログイン</p>
+              {pathname !== "/" && <Link href="/" className="mt-4 text-indigo-200 hover:text-white underline">ログイン</Link>}
             </div>
           )}
         </div>
 
-        <div className="main-content">
-          <div className="header">シフト管理システム</div>
-          {children}
+        {/* メインコンテンツ*/}
+        <div className="main-content flex-1 flex flex-col items-center p-4 lg:p-8">
+            
+            {/* 共通ヘッダー */}
+            <div className="
+                w-full max-w-6xl 
+                py-4 px-6 mb-8 
+                text-2xl font-bold text-center 
+                text-indigo-700 bg-white 
+                rounded-xl shadow-lg
+            ">
+                BestShift
+            </div>
+            
+            <div className="w-full max-w-6xl pb-20 lg:pb-0">
+                {children}
+            </div>
         </div>
-    </>
+    </div>
   );
 }
 
@@ -74,7 +122,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <head>
-        <title>シフト管理システム</title>
+        <title>BestShift</title>
       </head>
       <body>
         <UserProvider>
