@@ -39,21 +39,18 @@ export default function ShopUsersPage() {
     const [error, setError] = useState<string | null>(null);
 
     // 認証とデータ取得
-    useEffect(() => {
-        // ★ 修正: Contextのloadingがtrueの間は待機する
-        if (loading) return; 
-        
-        // ユーザーがロード完了後、未ログインの場合はトップへリダイレクト
-        if (!user) {
+    useEffect(() => {  
+        if (loading) return; // Contextのloadingがtrueの間は待機する
+
+        if (!user) {// ユーザーがロード完了後、未ログインの場合はトップへリダイレクト
             router.push('/'); 
             return;
         }
 
         // ログイン済みだが、店舗未所属の場合はリダイレクト
-        // URLのshopIdはあくまで参照用なので、自分の所属shop_idがnullでないかを見る
         if (user.shop_id === null) {
-            // ★ リダイレクト先を /staff_top など、適切なページに調整してな
-            router.push(`/shop/${shopId}/page`); 
+            // 店舗詳細のページと同じロジックをここに追加
+            // router.push(`/shop/${shopId}/page`); 
             return;
         }
 
@@ -92,11 +89,11 @@ export default function ShopUsersPage() {
         };
 
         fetchUsers();
-    // ★ 修正: 依存配列に loading を追加する
+    // 依存配列に loading を追加する
     }, [user, loading, shopId, router]);
 
 
-    // ★ 修正: Contextの loading と APIデータ取得の isLoading のどちらかがtrueなら表示
+    // Contextの loading と APIデータ取得の isLoading のどちらかがtrueなら表示
     if (loading || isLoading) {
         return <div className="p-6 text-center">データを読み込み中...</div>;
     }
@@ -118,9 +115,9 @@ export default function ShopUsersPage() {
                     >
                         <div className="flex items-center">
                             {/* アイコンまたはイニシャル表示 */}
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white ${shopUser.is_owner ? 'bg-indigo-600' : 'bg-gray-400'}`}>
+                            {/* <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white ${shopUser.is_owner ? 'bg-indigo-600' : 'bg-gray-400'}`}>
                                 {shopUser.user_name.charAt(0)}
-                            </div>
+                            </div> */}
 
                             <span className="text-lg font-medium">
                                 {shopUser.user_name}
