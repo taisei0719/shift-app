@@ -1,8 +1,6 @@
 /* frontend/app/globals.css */
 
 @tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer components {
     .nav-link {
@@ -13,6 +11,11 @@
         @apply text-center text-sm lg:text-base; 
     }
 }
+
+@tailwind components;
+@tailwind utilities;
+
+
 
 body {
     font-family: Arial, sans-serif;
