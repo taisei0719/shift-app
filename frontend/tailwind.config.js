@@ -1,7 +1,5 @@
 // frontend/tailwind.config.js
 
-dummy: true,
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   // Tailwindにスキャンするファイルを教える
