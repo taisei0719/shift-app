@@ -3,8 +3,7 @@
 "use client";
 
 import React from "react";
-// 共通の Calendar コンポーネントをインポート
-import Calendar from "../../components/Calendar"; 
+import AdminCalendarWrapper from "./_AdminCalendarWrapper"; // 新しいラッパーをインポート
 import { useUser } from "../context/UserContext";
 
 export default function AdminPage() {
@@ -47,11 +46,8 @@ export default function AdminPage() {
                     カレンダーから確認したい日をクリックしてください。
                 </p>
                 
-                {/* Calendarコンポーネントの配置 */}
-                <Calendar 
-                    base_path="/admin/day" 
-                    current_page_path="/admin"
-                />
+                {/* Calendar Wrapper コンポーネントの配置 */}
+                <AdminCalendarWrapper />
             </div>
         </div>
     );

@@ -13,14 +13,16 @@ interface Day {
 }
 
 interface CalendarProps {
-    base_path: string; // 遷移先のベースパス (例: /admin/day または /staff/shift_input)
-    current_page_path: string; // 月移動用の現在のページパス (例: /admin または /staff)
+    base_path: string; // 遷移先のベースパス (例: /admin/day)
+    current_page_path: string; // 月移動用の現在のページパス (例: /admin)
+    // ★追加: 日付ごとのシフト状況データ
+    statusData?: Record<string, 'no_requests' | 'requested' | 'confirmed'>; 
 }
 
 // 曜日名
 const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
 
-export default function Calendar({ base_path, current_page_path }: CalendarProps) {
+export default function Calendar({ base_path, current_page_path, statusData = {} }: CalendarProps) {
     const searchParams = useSearchParams();
     const router = useRouter();
 
@@ -50,7 +52,8 @@ export default function Calendar({ base_path, current_page_path }: CalendarProps
         // 前月の日付の空欄を埋める (0=日, 1=月, ..., 6=土)
         let startDayOfWeek = firstDay.getDay();
         for (let i = 0; i < startDayOfWeek; i++) {
-            daysArray.push({ day: "", month: m - 1, dateStr: "" });
+            // month: 0 は前月・次月の空欄として使用
+            daysArray.push({ day: "", month: 0, dateStr: "" }); 
         }
 
         // 今月の日付を生成
@@ -61,7 +64,7 @@ export default function Calendar({ base_path, current_page_path }: CalendarProps
 
         // 次月の日付の空欄を埋める
         while (daysArray.length % 7 !== 0) {
-            daysArray.push({ day: "", month: m + 1, dateStr: "" });
+            daysArray.push({ day: "", month: 0, dateStr: "" }); // 空の日付を挿入
         }
 
         return daysArray;
@@ -77,45 +80,80 @@ export default function Calendar({ base_path, current_page_path }: CalendarProps
             router.push(`${base_path}/${dateStr}`);
         }
     };
+    
+    // ★シフト状況に応じて背景色を決定するヘルパー関数
+    const getStatusClasses = (dateStr: string, isCurrentMonth: boolean): string => {
+        if (!isCurrentMonth) return 'bg-gray-50 text-gray-400 cursor-default';
+
+        const status = statusData[dateStr];
+        
+        switch (status) {
+            case 'confirmed':
+                // シフト確定済
+                return 'bg-green-100 hover:bg-green-200 border-green-300';
+            case 'requested':
+                // 希望提出済だが未確定 (要調整)
+                return 'bg-yellow-100 hover:bg-yellow-200 border-yellow-300';
+            case 'no_requests':
+                // 誰も希望を提出していない
+                return 'bg-red-100 hover:bg-red-200 border-red-300';
+            default:
+                // データがない場合（未来の日付など）
+                return 'bg-white hover:bg-indigo-50 border-gray-200';
+        }
+    };
+    
+    // ★シフト状況のテキストを表示するヘルパー関数
+    const getStatusText = (dateStr: string): React.ReactNode => {
+        const status = statusData[dateStr];
+        
+        switch (status) {
+            case 'confirmed':
+                return <span className="text-xs font-semibold text-green-700">✅ 確定済</span>;
+            case 'requested':
+                return <span className="text-xs font-semibold text-yellow-700">⏳ 要確認・未確定</span>;
+            case 'no_requests':
+                return <span className="text-xs font-semibold text-red-700">🚨 希望なし</span>;
+            default:
+                return <span className="text-xs text-gray-500">データなし</span>;
+        }
+    }
+
 
     return (
-        <div className="bg-white shadow-xl rounded-lg p-6">
+        <div className="bg-white shadow-xl rounded-lg p-6 border border-gray-200">
             
-            {/* ★ 月表示と月移動ナビゲーション */}
-            <div className="flex items-center justify-between mb-6">
-                
-                {/* 戻るボタン */}
+            {/* 月表示と月移動ナビゲーション (デザイン統一) */}
+            <div className="flex items-center justify-between mb-6 border-b pb-4">
                 <Link 
                     href={`${current_page_path}?year=${prevYear}&month=${prevMonth}`}
-                    className="p-2 text-indigo-600 hover:text-indigo-800 transition duration-150"
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition duration-150 font-bold"
                     aria-label="前の月へ"
                 >
                     &larr; 前の月
                 </Link>
 
-                {/* 現在の年月 */}
-                <h2 className="text-3xl font-bold text-gray-900">
+                <h2 className="text-2xl font-extrabold text-gray-900">
                     {year}年 {month}月
                 </h2>
 
-                {/* 進むボタン */}
                 <Link 
                     href={`${current_page_path}?year=${nextYear}&month=${nextMonth}`}
-                    className="p-2 text-indigo-600 hover:text-indigo-800 transition duration-150"
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition duration-150 font-bold"
                     aria-label="次の月へ"
                 >
                     次の月 &rarr;
                 </Link>
             </div>
             
-            {/* ★ カレンダー本体 (グリッドレイアウト) */}
-            <div className="grid grid-cols-7 border border-gray-200 rounded-lg overflow-hidden">
+            {/* カレンダー本体 (グリッドレイアウト) */}
+            <div className="grid grid-cols-7 border-t border-l border-gray-300">
                 
                 {/* 曜日ヘッダー */}
                 {dayNames.map((dayName, idx) => (
                     <div 
                         key={dayName} 
-                        className={`text-center font-bold py-3 text-sm text-white ${idx === 0 ? 'bg-red-500' : idx === 6 ? 'bg-blue-500' : 'bg-gray-700'}`}
+                        className={`text-center font-bold py-3 text-sm text-white border-r border-b border-gray-300 ${idx === 0 ? 'bg-red-500' : idx === 6 ? 'bg-blue-500' : 'bg-gray-700'}`}
                     >
                         {dayName}
                     </div>
@@ -131,29 +169,31 @@ export default function Calendar({ base_path, current_page_path }: CalendarProps
                     const isToday = day.dateStr === todayStr;
                     // 曜日 (0=日, 6=土)
                     const dayOfWeek = idx % 7;
+                    
+                    // ★ステータスに応じたクラスを取得
+                    const statusClasses = getStatusClasses(day.dateStr, isCurrentMonth);
 
                     return (
                         <div 
                             key={day.dateStr || idx}
                             onClick={() => isClickable && handleDateClick(day.dateStr)}
                             className={`
-                                h-28 p-1 sm:p-2 border border-gray-200 text-left transition duration-100 relative
-                                ${isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400 cursor-default'}
-                                ${isClickable ? 'cursor-pointer hover:bg-indigo-50' : ''}
-                                ${isToday ? 'border-2 border-indigo-500 ring-2 ring-indigo-200' : ''}
-                                ${dayOfWeek === 0 && isCurrentMonth ? 'text-red-600' : dayOfWeek === 6 && isCurrentMonth ? 'text-blue-600' : 'text-gray-800'}
+                                h-28 p-2 border-r border-b border-gray-300 text-left transition duration-100 relative
+                                ${statusClasses} /* ★ここをステータス色に変更 */
+                                ${isClickable ? 'cursor-pointer' : 'cursor-default'}
+                                ${isToday ? 'border-2 border-red-500 z-10' : ''} /* 今日の強調 */
                             `}
                         >
-                            {/* 日付の数字 */}
-                            <div className="text-sm font-semibold">
+                            {/* 日付の数字 (右上に配置) */}
+                            <div className={`text-sm font-bold absolute top-2 right-2 
+                                ${!isCurrentMonth ? 'text-gray-400' : dayOfWeek === 0 ? 'text-red-700' : dayOfWeek === 6 ? 'text-blue-700' : 'text-gray-800'}`}>
                                 {day.day || ""}
                             </div>
                             
-                            {/* シフトデータ表示エリア (ここでは空) */}
+                            {/* ★ シフト状況表示エリア */}
                             {isCurrentMonth && day.day && (
-                                <div className="text-xs mt-1 text-gray-500">
-                                    {/* (シフト概要などの情報をここに表示) */}
-                                    <div className="text-transparent">Placeholder</div> 
+                                <div className="text-xs mt-8">
+                                    {getStatusText(day.dateStr)}
                                 </div>
                             )}
                         </div>
