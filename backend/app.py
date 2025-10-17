@@ -311,6 +311,76 @@ def submit_shift_request():
 
     return jsonify({"message": f"日付 {date_str} のシフト希望を{new_request_count}件登録しました！"})
 
+# -------------------- API: 指定年月の店舗別シフト状況取得 (Admin専用) --------------------
+@app.route("/api/admin/shifts/status/<int:year>/<int:month>", methods=["GET"])
+def get_monthly_shift_status(year, month):
+    user_id = session.get("user_id")
+    shop_id = session.get("shop_id")
+    
+    # 1. ログイン/権限/所属店舗チェック
+    if not user_id or session.get("role") != 'admin':
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    if not shop_id:
+        # フロントエンドのAdminPageで店舗登録への誘導が行われるため、ここでは400で返す
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    try:
+        # 2. 期間の計算
+        start_date = date(year, month, 1)
+        # 翌月1日の前日 = 今月の最終日
+        if month == 12:
+            end_date = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(year, month + 1, 1) - timedelta(days=1)
+            
+    except ValueError:
+        return jsonify({"error": "年月の指定が不正です"}), 400
+
+    # 3. 店舗の全シフト（希望/確定）を期間で取得
+    # Shift モデルの shift_date で期間内、shift_type が 'request' または 'confirmed'
+    all_shifts = Shift.query.filter(
+        Shift.shop_id == shop_id,
+        Shift.shift_date >= start_date,
+        Shift.shift_date <= end_date,
+        Shift.shift_type.in_(['request', 'confirmed']) 
+    ).all()
+
+    # 4. 日ごとのシフト状況を集計
+    # Key: 'YYYY-MM-DD', Value: 'confirmed', 'requested', 'no_requests'
+    daily_status: dict[str, str] = {}
+    
+    # 全ての従業員（店舗所属者）を取得
+    # これにより、希望を提出していない日 ('no_requests') の判断が可能になる
+    all_staff_ids = [u.id for u in User.query.filter(User.shop_id == shop_id).all()]
+    
+    # 対象期間内の全ての日付を生成
+    current_day = start_date
+    while current_day <= end_date:
+        date_str = current_day.strftime('%Y-%m-%d')
+        daily_status[date_str] = 'no_requests' # デフォルトは「希望なし」
+        current_day += timedelta(days=1)
+
+    # シフトデータを日付ごとにループ処理
+    for shift in all_shifts:
+        date_str = shift.shift_date.strftime('%Y-%m-%d')
+        current_status = daily_status.get(date_str, 'no_requests')
+
+        if shift.shift_type == 'confirmed':
+            # 1つでも確定シフトがあれば、その日のステータスは「確定済」
+            daily_status[date_str] = 'confirmed'
+        elif shift.shift_type == 'request' and current_status != 'confirmed':
+            # 確定済でなければ、希望シフトがある場合は「未確定の希望あり」
+            daily_status[date_str] = 'requested'
+
+    # 5. フロントエンドが期待する形式に変換（リスト形式）
+    monthly_status_list = [
+        {"date": date_str, "status": status}
+        for date_str, status in daily_status.items()
+    ]
+    
+    # 6. JSONレスポンスとして返す
+    return jsonify({"monthly_status": monthly_status_list}), 200
+
 # -------------------- API: 指定日のシフト一覧取得/調整用 (Admin専用) --------------------
 @app.route("/api/admin/shifts/<date_str>", methods=["GET"])
 def get_shifts_for_admin(date_str):
