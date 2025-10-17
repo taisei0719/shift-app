@@ -111,7 +111,7 @@ export default function Calendar({ base_path, current_page_path, statusData = {}
             case 'confirmed':
                 return <span className="text-xs font-semibold text-green-700">✅ 確定済</span>;
             case 'requested':
-                return <span className="text-xs font-semibold text-yellow-700">⏳ 要確認・未確定</span>;
+                return <span className="text-xs font-semibold text-yellow-700">⏳ 未確定</span>;
             case 'no_requests':
                 return <span className="text-xs font-semibold text-red-700">🚨 希望なし</span>;
             default:
