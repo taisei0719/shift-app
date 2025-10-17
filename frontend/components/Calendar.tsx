@@ -96,7 +96,7 @@ export default function Calendar({ base_path, current_page_path, statusData = {}
                 return 'bg-yellow-100 hover:bg-yellow-200 border-yellow-300';
             case 'no_requests':
                 // 誰も希望を提出していない
-                return 'bg-red-100 hover:bg-red-200 border-red-300';
+                return 'bg-white hover:bg-red-200 border-red-300';
             default:
                 // データがない場合（未来の日付など）
                 return 'bg-white hover:bg-indigo-50 border-gray-200';
