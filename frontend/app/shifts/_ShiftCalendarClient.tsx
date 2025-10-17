@@ -190,6 +190,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         const confirmedShift = shifts.find(s => s.shift_type === 'confirmed');
         if (confirmedShift) {
             return (
+                // 確定シフトはより重要な情報なので、少し大きく、太字に
                 <div className="text-xs font-bold text-green-600 truncate">
                     確定: {confirmedShift.start_time.substring(0, 5)} - {confirmedShift.end_time.substring(0, 5)}
                 </div>
@@ -252,11 +253,11 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                     ) : (
                         // カレンダーグリッド
                         <div className="grid grid-cols-7 border-t border-l border-gray-300">
-                            {/* 曜日ヘッダー */}
+                            {/* 曜日ヘッダー ★text-center を追加 */}
                             {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
                                 <div 
                                     key={day} 
-                                    className={`py-3 font-bold text-sm text-white border-r border-b border-gray-300 
+                                    className={`py-3 font-bold text-sm text-white border-r border-b border-gray-300 text-center 
                                         ${index === 0 ? 'bg-red-500' : index === 6 ? 'bg-blue-500' : 'bg-gray-700'}`}
                                 >
                                     {day}
@@ -265,7 +266,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                             
                             {/* 月の初めまでの空のマス */}
                             {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                                <div key={`empty-${index}`} className="p-2 h-24 border-r border-b border-gray-300 bg-gray-50"></div>
+                                <div key={`empty-${index}`} className="p-2 **h-28** border-r border-b border-gray-300 bg-gray-50"></div>
                             ))}
                             
                             {/* 日付とシフト情報 */}
@@ -282,19 +283,20 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                                         key={dateStr}
                                         onClick={() => isFuture && handleDayClick(day)} // 過去はクリック不可
                                         className={`
-                                            p-2 h-24 border-r border-b border-gray-300 text-left transition-all duration-150 relative
+                                            p-2 **h-28** border-r border-b border-gray-300 text-left transition-all duration-150 relative
                                             ${isPast ? 'bg-gray-100 cursor-not-allowed text-gray-400' : 'hover:bg-indigo-50 cursor-pointer'}
                                             ${isToday && isFuture ? 'border-2 border-red-500 bg-red-50' : ''}
                                             ${isSelected ? 'bg-indigo-100 ring-2 ring-indigo-500 z-10' : ''}
                                         `}
                                         disabled={isPast}
                                     >
-                                        {/* 日付の数字 */}
-                                        <div className={`text-sm font-bold mb-1 ${day.getDay() === 0 ? 'text-red-700' : day.getDay() === 6 ? 'text-blue-700' : 'text-gray-800'}`}>
+                                        {/* 日付の数字は右上に寄せて、見やすくする */}
+                                        <div className={`text-sm font-bold mb-1 absolute top-1 right-2 
+                                            ${day.getDay() === 0 ? 'text-red-700' : day.getDay() === 6 ? 'text-blue-700' : 'text-gray-800'}`}>
                                             {format(day, 'd')}
                                         </div>
-                                        {/* シフト情報 */}
-                                        <div className="mt-1">
+                                        {/* シフト情報は左上から少し下げて配置 */}
+                                        <div className="mt-6 text-center">
                                             {renderShiftInfo(dateStr)}
                                         </div>
                                     </button>
