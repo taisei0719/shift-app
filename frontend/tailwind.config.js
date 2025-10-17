@@ -6,6 +6,7 @@ dummy: true,
 module.exports = {
   // Tailwindにスキャンするファイルを教える
   content: [
+    "./**/*.{js,ts,jsx,tsx,mdx}", // すべてのディレクトリをスキャン
     "./app/**/*.{js,ts,jsx,tsx,mdx}", // app/ディレクトリをスキャン
     "./pages/**/*.{js,ts,jsx,tsx,mdx}", // pages/ディレクトリをスキャン
     "./components/**/*.{js,ts,jsx,tsx,mdx}", // components/ディレクトリをスキャン
