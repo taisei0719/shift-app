@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext'; 
+// 日付処理ライブラリをインポート
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -12,7 +13,7 @@ interface ShiftData {
     id: number;
     shift_date: string; // YYYY-MM-DD
     start_time: string; // HH:MM
-    end_time: string;   // HH:MM
+    end_time: string;   // HH:MM
     shift_type: 'request' | 'confirmed';
 }
 
@@ -44,12 +45,10 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
 
-    // APIから月間シフトデータを取得する関数
+    // APIから月間シフトデータを取得する関数 (useCallbackでメモ化)
     const fetchShifts = useCallback(async (y: number, m: number) => {
-        // ユーザー情報がない場合はAPIコールをスキップする ★
+        // ユーザー情報がない場合はAPIコールをスキップする
         if (!user) {
-            // スキップしても、最終的には LayoutContent で未ログインと判断されて / にリダイレクトされる
-            // ここでは何もせずに終了する
             return;
         }
 
@@ -63,12 +62,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                 credentials: 'include' 
             });
             if (!res.ok) {
-
-                // 401 Unauthorized の場合はログインページにリダイレクト
-                // if (res.status === 401) {
-                //     router.push('/');
-                //     return;
-                // }
                 throw new Error('シフトデータの取得に失敗しました。');
             }
             const data = await res.json();
@@ -78,16 +71,15 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         } finally {
             setIsLoading(false);
         }
-    }, [router, user]);
+    }, [user]);
 
     // 年月が変わるたびにシフトデータを再取得
     useEffect(() => {
-        // user が存在する場合にのみ fetchShifts を実行する 
+        // user が存在する場合にのみ fetchShifts を実行
         if (user) { 
             fetchShifts(year, month);
         } else {
-            // user が null/undefined の場合、ロード状態を解除して、LayoutContentによるリダイレクトを待つ
-            setIsLoading(false);
+            setIsLoading(false); // ロード状態を解除
         }
     }, [year, month, fetchShifts, user]); 
 
@@ -99,8 +91,8 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         return eachDayOfInterval({ start, end });
     }, [currentDate]);
     
-    // カレンダーの表示開始位置を調整するための空のマス目を計算
-    const startingDayOfWeek = daysInMonth[0].getDay(); // 0: 日曜, 6: 土曜
+    // カレンダーの表示開始位置を調整するための空のマス目を計算 (0: 日曜, 6: 土曜)
+    const startingDayOfWeek = daysInMonth[0].getDay(); 
 
     // ---------------------- フォーム操作 ----------------------
     
@@ -113,10 +105,11 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         // 既存の希望シフトがあれば、フォームに時間をセット
         const existingShift = shiftsByDate[dateStr]?.find(s => s.shift_type === 'request');
         if (existingShift) {
-            setStartTime(existingShift.start_time);
-            setEndTime(existingShift.end_time);
+            // 時刻は HH:MM 形式で表示するために .substring(0, 5) を使用
+            setStartTime(existingShift.start_time.substring(0, 5));
+            setEndTime(existingShift.end_time.substring(0, 5));
         } else {
-            // 休みや未提出の場合はフォームをクリア
+            // 休みや未提出の場合はフォームを初期化
             setStartTime('00:00'); 
             setEndTime('00:00');
         }
@@ -130,13 +123,14 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         setIsLoading(true);
         setMessage(null);
         
+        // 休み希望かどうかの判定
         const isDayOff = startTime === '00:00' && endTime === '00:00';
         
-        // 提出データは常に配列として送信
+        // APIに送信するデータ構造
         const shiftData = [{
-            date: selectedDate, // ★ キーを shift_date から date に修正
-            start: startTime,   // ★ キーを start_time から start に修正
-            end: endTime,       // ★ キーを end_time から end に修正
+            date: selectedDate,
+            start: startTime,
+            end: endTime,
         }];
 
         try {
@@ -145,7 +139,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                // 休みの場合も含む全てのデータ送信
                 body: JSON.stringify({ requests: shiftData }),
             });
 
@@ -153,7 +146,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             
             if (res.ok) {
                 // 成功したらデータを再取得してカレンダーを更新
-                setMessage(isDayOff ? '休みとして提出しました！' : 'シフト希望を提出しました！');
+                setMessage(isDayOff ? '休み希望を提出しました！' : 'シフト希望を提出・更新しました！');
                 await fetchShifts(year, month);
             } else {
                 setMessage(`提出失敗: ${data.error || 'サーバーエラー'}`);
@@ -173,6 +166,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             const newDate = new Date(prev.getFullYear(), prev.getMonth() - 1, 1);
             return newDate;
         });
+        setSelectedDate(null); // 月移動したら選択解除
     };
 
     const goToNextMonth = () => {
@@ -180,10 +174,12 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             const newDate = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
             return newDate;
         });
+        setSelectedDate(null); // 月移動したら選択解除
     };
     
-    // ---------------------- レンダリング ----------------------
+    // ---------------------- レンダリング用ヘルパー ----------------------
 
+    // カレンダーセルの中にシフト情報を表示する関数
     const renderShiftInfo = (dateStr: string) => {
         const shifts = shiftsByDate[dateStr];
         if (!shifts || shifts.length === 0) {
@@ -194,7 +190,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         const confirmedShift = shifts.find(s => s.shift_type === 'confirmed');
         if (confirmedShift) {
             return (
-                <div className="text-xs font-bold text-green-600">
+                <div className="text-xs font-bold text-green-600 truncate">
                     確定: {confirmedShift.start_time.substring(0, 5)} - {confirmedShift.end_time.substring(0, 5)}
                 </div>
             );
@@ -203,13 +199,16 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         // 希望シフトがあればそれを表示
         const requestedShift = shifts.find(s => s.shift_type === 'request');
         if (requestedShift) {
+            const start = requestedShift.start_time.substring(0, 5);
+            const end = requestedShift.end_time.substring(0, 5);
+            
             // 休み('00:00'-'00:00')の判定
-            if (requestedShift.start_time.substring(0, 5) === '00:00' && requestedShift.end_time.substring(0, 5) === '00:00') {
-                return <span className="text-xs text-blue-500">休み希望</span>;
+            if (start === '00:00' && end === '00:00') {
+                return <span className="text-xs font-semibold text-blue-500">休み希望</span>;
             }
             return (
-                <div className="text-xs text-yellow-600">
-                    希望: {requestedShift.start_time.substring(0, 5)} - {requestedShift.end_time.substring(0, 5)}
+                <div className="text-xs font-medium text-yellow-700 truncate">
+                    希望: {start} - {end}
                 </div>
             );
         }
@@ -226,155 +225,180 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                 options.push(timeStr);
             }
         }
-        //options.push('00:00'); // 休み用として念のため再追加
-        return options;
+        options.push('00:00'); // 休み希望用に '00:00' も追加
+        return Array.from(new Set(options)).sort(); 
     }, []);
 
+    // ---------------------- メインレンダリング ----------------------
+
     return (
-        <div className="flex **flex-row** gap-8">
-            {/* -------------------- カレンダー表示エリア -------------------- */}
-            <div className="**w-3/5** bg-white p-6 shadow-lg rounded-lg">
-                <div className="flex justify-between items-center mb-4">
-                    <button onClick={goToPreviousMonth} className="p-2 rounded-full hover:bg-gray-100">&lt; 前の月</button>
-                    <h2 className="text-xl font-semibold">{format(currentDate, 'yyyy年M月', { locale: ja })}</h2>
-                    <button onClick={goToNextMonth} className="p-2 rounded-full hover:bg-gray-100">次の月 &gt;</button>
+        <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+                
+                {/* -------------------- カレンダー表示エリア (左側) -------------------- */}
+                <div className="w-full lg:w-3/5 bg-white p-6 shadow-xl rounded-lg border border-gray-200">
+                    
+                    {/* 月のナビゲーション */}
+                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                        <button onClick={goToPreviousMonth} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition duration-150 font-bold">&larr; 前の月</button>
+                        <h2 className="text-2xl font-extrabold text-gray-900">{format(currentDate, 'yyyy年M月', { locale: ja })}</h2>
+                        <button onClick={goToNextMonth} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition duration-150 font-bold">次の月 &rarr;</button>
+                    </div>
+                    
+                    {isLoading ? (
+                        <div className="text-center py-16 text-indigo-600 font-semibold">データを読み込み中...</div>
+                    ) : error ? (
+                        <div className="text-center py-16 text-red-600 font-semibold border border-red-300 bg-red-50 rounded-md">エラー: {error}</div>
+                    ) : (
+                        // カレンダーグリッド
+                        <div className="grid grid-cols-7 border-t border-l border-gray-300">
+                            {/* 曜日ヘッダー */}
+                            {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
+                                <div 
+                                    key={day} 
+                                    className={`py-3 font-bold text-sm text-white border-r border-b border-gray-300 
+                                        ${index === 0 ? 'bg-red-500' : index === 6 ? 'bg-blue-500' : 'bg-gray-700'}`}
+                                >
+                                    {day}
+                                </div>
+                            ))}
+                            
+                            {/* 月の初めまでの空のマス */}
+                            {Array.from({ length: startingDayOfWeek }).map((_, index) => (
+                                <div key={`empty-${index}`} className="p-2 h-24 border-r border-b border-gray-300 bg-gray-50"></div>
+                            ))}
+                            
+                            {/* 日付とシフト情報 */}
+                            {daysInMonth.map((day) => {
+                                const dateStr = format(day, 'yyyy-MM-dd');
+                                const isToday = isSameDay(day, new Date());
+                                const isSelected = selectedDate === dateStr;
+                                // 過去の日付はクリック不可とする
+                                const isPast = day.getTime() < new Date().setHours(0,0,0,0);
+                                const isFuture = day.getTime() >= new Date().setHours(0,0,0,0); 
+                                
+                                return (
+                                    <button 
+                                        key={dateStr}
+                                        onClick={() => isFuture && handleDayClick(day)} // 過去はクリック不可
+                                        className={`
+                                            p-2 h-24 border-r border-b border-gray-300 text-left transition-all duration-150 relative
+                                            ${isPast ? 'bg-gray-100 cursor-not-allowed text-gray-400' : 'hover:bg-indigo-50 cursor-pointer'}
+                                            ${isToday && isFuture ? 'border-2 border-red-500 bg-red-50' : ''}
+                                            ${isSelected ? 'bg-indigo-100 ring-2 ring-indigo-500 z-10' : ''}
+                                        `}
+                                        disabled={isPast}
+                                    >
+                                        {/* 日付の数字 */}
+                                        <div className={`text-sm font-bold mb-1 ${day.getDay() === 0 ? 'text-red-700' : day.getDay() === 6 ? 'text-blue-700' : 'text-gray-800'}`}>
+                                            {format(day, 'd')}
+                                        </div>
+                                        {/* シフト情報 */}
+                                        <div className="mt-1">
+                                            {renderShiftInfo(dateStr)}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
                 
-                {isLoading ? (
-                    <div className="text-center py-8">ロード中...</div>
-                ) : error ? (
-                    <div className="text-center py-8 text-red-500">エラー: {error}</div>
-                ) : (
-                    <div className="grid grid-cols-7 text-center border-t border-l">
-                        {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
-                            <div key={day} className={`py-2 font-bold border-r border-b ${index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : ''}`}>
-                                {day}
+                {/* -------------------- シフト提出フォームエリア (右側) -------------------- */}
+                <div className="w-full lg:w-2/5 bg-white p-6 shadow-xl rounded-lg border border-gray-200 sticky lg:top-8 self-start">
+                    <h3 className="text-xl font-extrabold text-gray-900 border-b pb-3 mb-4">希望シフト提出フォーム</h3>
+                    
+                    {selectedDate ? (
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <p className="text-lg font-bold text-indigo-700">対象日: {format(new Date(selectedDate), 'yyyy年M月d日 (eee)', { locale: ja })}</p>
+
+                            <div className="space-y-4">
+                                {/* 開始時刻 */}
+                                <div className="flex flex-col">
+                                    <label htmlFor="start_time" className="text-sm font-medium text-gray-700 mb-1">開始時刻</label>
+                                    <select
+                                        id="start_time"
+                                        value={startTime}
+                                        onChange={(e) => {
+                                            setStartTime(e.target.value);
+                                            // 休み希望の場合、終了時刻を 00:00 に強制する
+                                            if (e.target.value === '00:00') setEndTime('00:00');
+                                        }}
+                                        required
+                                        className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-white"
+                                    >
+                                        {timeOptions.map(time => (
+                                            <option key={`start-${time}`} value={time}>{time}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                {/* 終了時刻 */}
+                                <div className="flex flex-col">
+                                    <label htmlFor="end_time" className="text-sm font-medium text-gray-700 mb-1">終了時刻</label>
+                                    <select
+                                        id="end_time"
+                                        value={endTime}
+                                        onChange={(e) => setEndTime(e.target.value)}
+                                        required
+                                        className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-white disabled:bg-gray-50 disabled:text-gray-500"
+                                        disabled={startTime === '00:00'} // 休み希望中は変更不可
+                                    >
+                                        {timeOptions.map(time => (
+                                            <option key={`end-${time}`} value={time}>{time}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 休み希望チェックボックス */}
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <input
+                                        type="checkbox"
+                                        id="day_off"
+                                        checked={startTime === '00:00' && endTime === '00:00'}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setStartTime('00:00');
+                                                setEndTime('00:00');
+                                            } else {
+                                                // チェック解除時は初期値に戻す（今回は適当な時間）
+                                                setStartTime('09:00'); 
+                                                setEndTime('17:00');
+                                            }
+                                        }}
+                                        className="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                    />
+                                    <label htmlFor="day_off" className="text-base font-medium text-gray-700">この日は休みを希望する</label>
+                                </div>
                             </div>
-                        ))}
-                        
-                        {/* 月の初めまでの空のマス */}
-                        {Array.from({ length: startingDayOfWeek }).map((_, index) => (
-                            <div key={`empty-${index}`} className="p-2 border-r border-b bg-gray-50"></div>
-                        ))}
-                        
-                        {/* 日付とシフト情報 */}
-                        {daysInMonth.map((day, index) => {
-                            const dateStr = format(day, 'yyyy-MM-dd');
-                            const isToday = isSameDay(day, new Date());
-                            const isSelected = selectedDate === dateStr;
                             
-                            // 過去の日付はクリック不可
-                            const isPast = day.getTime() < new Date().setHours(0,0,0,0);
-
-                            return (
-                                <button 
-                                    key={dateStr}
-                                    onClick={() => !isPast && handleDayClick(day)}
-                                    className={`
-                                        p-2 h-24 border-r border-b text-left transition-all duration-150
-                                        ${isPast ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-indigo-50 hover:shadow-inner cursor-pointer'}
-                                        ${isToday ? 'border-2 border-red-500 bg-red-50' : ''}
-                                        ${isSelected ? 'bg-indigo-100 ring-2 ring-indigo-500' : ''}
-                                    `}
-                                    disabled={isPast}
-                                >
-                                    <div className={`text-sm font-semibold mb-1 ${day.getDay() === 0 ? 'text-red-600' : day.getDay() === 6 ? 'text-blue-600' : ''}`}>
-                                        {format(day, 'd')}
-                                    </div>
-                                    <div className="text-xs">
-                                        {renderShiftInfo(dateStr)}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-            
-            {/* -------------------- シフト提出フォームエリア -------------------- */}
-            <div className="**w-2/5** bg-white p-6 shadow-lg rounded-lg sticky top-4 self-start">
-                <h3 className="text-xl font-semibold border-b pb-3 mb-4">シフト提出</h3>
-                
-                {selectedDate ? (
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <p className="text-lg font-bold">対象日: {format(new Date(selectedDate), 'yyyy年M月d日 (eee)', { locale: ja })}</p>
-
-                        <div className="flex gap-2 items-center">
-                            <label htmlFor="start_time" className="block text-sm font-medium w-1/4">開始時刻</label>
-                            <select
-                                id="start_time"
-                                value={startTime}
-                                onChange={(e) => {
-                                    setStartTime(e.target.value);
-                                    if (e.target.value === '00:00') setEndTime('00:00'); // 開始00:00なら終了も00:00に強制
-                                }}
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"
+                            {/* 提出ボタン */}
+                            <button 
+                                type="submit"
+                                className="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 transition duration-150"
+                                disabled={isLoading}
                             >
-                                {timeOptions.map(time => (
-                                    <option key={time} value={time}>{time}</option>
-                                ))}
-                            </select>
-                        </div>
+                                {isLoading ? '提出中...' : 'シフトを提出・更新する'}
+                            </button>
+                            
+                            {/* 提出後のメッセージ */}
+                            {message && (
+                                <p className={`text-center text-sm font-semibold p-2 rounded-md ${message.includes('失敗') ? 'text-red-700 bg-red-100' : 'text-green-700 bg-green-100'}`}>{message}</p>
+                            )}
 
-                        <div className="flex gap-2 items-center">
-                            <label htmlFor="end_time" className="block text-sm font-medium w-1/4">終了時刻</label>
-                            <select
-                                id="end_time"
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"
-                                disabled={startTime === '00:00'} // 休みの場合、終了時刻は変更不可
+                            {/* フォームを閉じるボタン */}
+                            <button 
+                                type="button"
+                                onClick={() => setSelectedDate(null)}
+                                className="w-full text-center mt-4 text-sm text-gray-500 hover:text-indigo-600 transition duration-150"
                             >
-                                {timeOptions.map(time => (
-                                    <option key={time} value={time}>{time}</option>
-                                ))}
-                            </select>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 pt-2">
-                            <input
-                                type="checkbox"
-                                id="day_off"
-                                checked={startTime === '00:00' && endTime === '00:00'}
-                                onChange={(e) => {
-                                    if (e.target.checked) {
-                                        setStartTime('00:00');
-                                        setEndTime('00:00');
-                                    } else {
-                                        setStartTime('');
-                                        setEndTime('');
-                                    }
-                                }}
-                                className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                            />
-                            <label htmlFor="day_off" className="text-sm font-medium text-gray-700">この日は休みを希望する</label>
-                        </div>
-
-                        <button 
-                            type="submit"
-                            className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? '提出中...' : 'シフトを提出・更新する'}
-                        </button>
-                        
-                        {message && (
-                            <p className={`text-center text-sm ${message.includes('失敗') ? 'text-red-500' : 'text-green-500'}`}>{message}</p>
-                        )}
-
-                        <button 
-                            type="button"
-                            onClick={() => setSelectedDate(null)}
-                            className="w-full text-center mt-2 text-sm text-gray-500 hover:text-gray-700"
-                        >
-                            閉じる
-                        </button>
-                    </form>
-                ) : (
-                    <p className="text-gray-500">カレンダーから日付を選択してください。</p>
-                )}
+                                閉じる
+                            </button>
+                        </form>
+                    ) : (
+                        <p className="text-gray-500 text-center py-10 border border-dashed rounded-lg">カレンダーから日付を選択して、希望シフトを入力してください。</p>
+                    )}
+                </div>
             </div>
         </div>
     );
