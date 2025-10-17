@@ -26,7 +26,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
         {/*サイドバーのモダン化*/}
-        <div className="flex flex-col w-64 min-w-[256px] bg-indigo-700 text-white p-6 shadow-2xl z-10 transition-all duration-300fixed bottom-0 left-0 right-0 h-16 lg:h-auto lg:relative lg:flex-col lg:justify-start lg:shadow-none">
+        <div className="flex flex-col w-64 min-w-[256px] bg-indigo-700 text-white p-6 shadow-2xl z-10 transition-all duration-300 fixed bottom-0 left-0 right-0 h-16 lg:h-auto lg:relative lg:flex-col lg:justify-start lg:shadow-none">
           {user ? (
             <>
               {/* ユーザー情報 (モバイルでは非表示) */}
@@ -63,7 +63,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 {/* モバイルログアウトボタンをナビバー内に配置 */}
                 <button 
                     onClick={handleLogout} 
-                    className="flex-1 py-2 px-4 text-xs font-semiboldbg-red-500 hover:bg-red-600 active:bg-red-700rounded-lg text-white transition-colors duration-200 lg:hidden">
+                    className="flex-1 py-2 px-4 text-xs font-semibold bg-red-500 hover:bg-red-600 active:bg-red-700 rounded-lg text-white transition-colors duration-200 lg:hidden">
                     ログアウト
                 </button>
               </div>
@@ -71,7 +71,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               {/* ログアウトボタン (モバイルでは非表示、PCでは下部に固定) */}
               <button 
                 onClick={handleLogout} 
-                className="mt-auto py-2 px-4 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 rounded-full text-white font-semibold shadow-md transition-colors duration-200hidden lg:block">
+                className="mt-auto py-2 px-4 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 rounded-full text-white font-semibold shadow-md transition-colors duration-200 hidden lg:block">
                 ログアウト
               </button>
             </>
