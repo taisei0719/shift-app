@@ -20,7 +20,6 @@ interface ShopData {
     location: string;
 }
 
-// Next.jsのビルドエラー回避のため、型はインラインで定義
 export default function ShopUsersPage() {
     const router = useRouter();
     const params = useParams();
@@ -39,7 +38,7 @@ export default function ShopUsersPage() {
     const [error, setError] = useState<string | null>(null);
 
     // 認証とデータ取得
-    useEffect(() => {  
+    useEffect(() => {  
         if (loading) return; // Contextのloadingがtrueの間は待機する
 
         if (!user) {// ユーザーがロード完了後、未ログインの場合はトップへリダイレクト
@@ -47,15 +46,13 @@ export default function ShopUsersPage() {
             return;
         }
 
-        // ログイン済みだが、店舗未所属の場合はリダイレクト
+        // ログイン済みだが、店舗未所属の場合はリダイレクト (ここではリターンのみ)
         if (user.shop_id === null) {
-            // 店舗詳細のページと同じロジックをここに追加
-            // router.push(`/shop/${shopId}/page`); 
+            // 店舗詳細のページと同じロジックを適用
             return;
         }
 
         // アクセス権限チェック (URLのshopIdとユーザーの所属shopIdが一致しない場合はエラー)
-        // URLパラメータはstring、user.shop_idはnumberなので型を合わせる
         if (user.shop_id !== shopId) {
             setError("アクセス権限がありません。所属店舗の情報を確認してください。");
             setIsLoading(false);
@@ -65,7 +62,6 @@ export default function ShopUsersPage() {
         // 従業員一覧データを取得
         const fetchUsers = async () => {
             try {
-                // api.get() は withCredentials が設定されたクライアントであることを前提
                 const response = await api.get(`/shops/${shopId}/users`); 
                 
                 if (response.status === 200) {
@@ -89,60 +85,100 @@ export default function ShopUsersPage() {
         };
 
         fetchUsers();
-    // 依存配列に loading を追加する
     }, [user, loading, shopId, router]);
 
 
-    // Contextの loading と APIデータ取得の isLoading のどちらかがtrueなら表示
+    // ----------------------------------------------------------------------
+    // ★ ローディング/エラー表示
+    // ----------------------------------------------------------------------
     if (loading || isLoading) {
-        return <div className="p-6 text-center">データを読み込み中...</div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <p className="text-gray-600">データを読み込み中...</p>
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="p-6 text-red-500">エラー: {error}</div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="p-8 bg-white shadow-lg rounded-lg border border-red-300">
+                    <h2 className="text-xl font-bold text-red-600 mb-4">エラーが発生しました</h2>
+                    <p className="text-red-500">{error}</p>
+                    <button 
+                        onClick={() => router.back()}
+                        className="mt-6 py-2 px-4 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition duration-150"
+                    >
+                        戻る
+                    </button>
+                </div>
+            </div>
+        );
     }
 
+    // ----------------------------------------------------------------------
+    // ★ メインコンテンツ表示
+    // ----------------------------------------------------------------------
     return (
-        <div className="p-6 shop-users-container">
-            <h1 className="text-3xl font-bold mb-4">{shopData?.name || "店舗"} の従業員一覧</h1>
-            <p className="mb-6 text-gray-600">現在、{usersInShop.length} 名のスタッフが登録されています。</p>
+        <div className="min-h-screen flex justify-center py-10 bg-gray-50">
+            {/* メインコンテナ */}
+            <div className="w-full max-w-2xl p-8 space-y-6 bg-white shadow-xl rounded-lg border border-gray-200">
+                
+                {/* ヘッダー */}
+                <h1 className="text-3xl font-extrabold text-gray-900 border-b pb-3">
+                    {shopData?.name || "店舗"} の従業員一覧
+                </h1>
+                
+                <p className="text-gray-600">
+                    現在、<span className="font-semibold text-indigo-600">{usersInShop.length}</span> 名のスタッフが登録されています。
+                </p>
 
-            <div className="space-y-3">
-                {usersInShop.map((shopUser) => (
-                    <div 
-                        key={shopUser.user_id} 
-                        className="p-4 border rounded-lg flex items-center justify-between shadow-sm bg-white"
-                    >
-                        <div className="flex items-center">
-                            {/* アイコンまたはイニシャル表示 */}
-                            {/* <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 text-white ${shopUser.is_owner ? 'bg-indigo-600' : 'bg-gray-400'}`}>
-                                {shopUser.user_name.charAt(0)}
-                            </div> */}
+                {/* 従業員リスト */}
+                <div className="space-y-3">
+                    {usersInShop.map((shopUser) => (
+                        <div 
+                            key={shopUser.user_id} 
+                            className="p-4 border rounded-xl flex items-center justify-between shadow-sm bg-gray-50 hover:bg-white transition duration-200"
+                        >
+                            <div className="flex items-center">
+                                {/* アイコン (イニシャル) */}
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 font-bold text-lg text-white 
+                                    ${shopUser.is_owner ? 'bg-indigo-600' : 'bg-gray-500'}`}
+                                >
+                                    {shopUser.user_name.charAt(0)}
+                                </div>
 
-                            <span className="text-lg font-medium">
-                                {shopUser.user_name}
-                                {/* ★ オーナー表示のタグ ★ */}
+                                {/* ユーザー名 */}
+                                <span className="text-lg font-semibold text-gray-800">
+                                    {shopUser.user_name}
+                                </span>
+
+                                {/* オーナー表示のタグ */}
                                 {shopUser.is_owner && (
-                                    <span className="ml-3 px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                    <span className="ml-3 px-3 py-1 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800">
                                         オーナー
                                     </span>
                                 )}
-                                {/* (オプション) 自分が表示されている場合に「あなた」と表示 */}
+                                
+                                {/* 自分が表示されている場合に「あなた」と表示 */}
                                 {shopUser.user_id === user?.user_id && (
-                                    <span className="ml-2 text-sm text-gray-500">(あなた)</span>
+                                    <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 rounded-md">
+                                        あなた
+                                    </span>
                                 )}
-                            </span>
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
 
-            <button 
-                onClick={() => router.back()} 
-                className="mt-6 py-2 px-4 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
-            >
-                戻る
-            </button>
+                {/* 戻るボタン */}
+                <button 
+                    onClick={() => router.back()} 
+                    className="mt-6 py-2 px-4 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition duration-150 border border-gray-300"
+                >
+                    &larr; 戻る
+                </button>
+            </div>
         </div>
     );
 }
