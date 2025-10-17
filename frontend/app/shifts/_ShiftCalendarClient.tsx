@@ -190,8 +190,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         const confirmedShift = shifts.find(s => s.shift_type === 'confirmed');
         if (confirmedShift) {
             return (
-                // 確定シフトはより重要な情報なので、少し大きく、太字に
-                <div className="text-xs font-bold text-green-600 truncate">
+                <div className="text-xs font-bold text-green-600 truncate text-center">
                     確定: {confirmedShift.start_time.substring(0, 5)} - {confirmedShift.end_time.substring(0, 5)}
                 </div>
             );
@@ -205,10 +204,10 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             
             // 休み('00:00'-'00:00')の判定
             if (start === '00:00' && end === '00:00') {
-                return <span className="text-xs font-semibold text-blue-500">休み希望</span>;
+                return <span className="text-xs font-semibold text-blue-500 text-center">休み希望</span>;
             }
             return (
-                <div className="text-xs font-medium text-yellow-700 truncate">
+                <div className="text-xs font-medium text-yellow-700 truncate text-center">
                     希望: {start} - {end}
                 </div>
             );
@@ -237,9 +236,10 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
                 
                 {/* -------------------- カレンダー表示エリア (左側) -------------------- */}
+                {/* Calendar.tsx とデザインを統一するために border を追加 */}
                 <div className="w-full lg:w-3/5 bg-white p-6 shadow-xl rounded-lg border border-gray-200">
                     
-                    {/* 月のナビゲーション */}
+                    {/* 月のナビゲーション (Calendar.tsx と統一) */}
                     <div className="flex justify-between items-center mb-6 border-b pb-4">
                         <button onClick={goToPreviousMonth} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition duration-150 font-bold">&larr; 前の月</button>
                         <h2 className="text-2xl font-extrabold text-gray-900">{format(currentDate, 'yyyy年M月', { locale: ja })}</h2>
@@ -251,9 +251,9 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                     ) : error ? (
                         <div className="text-center py-16 text-red-600 font-semibold border border-red-300 bg-red-50 rounded-md">エラー: {error}</div>
                     ) : (
-                        // カレンダーグリッド
+                        // カレンダーグリッド (Calendar.tsx と統一)
                         <div className="grid grid-cols-7 border-t border-l border-gray-300">
-                            {/* 曜日ヘッダー ★text-center を追加 */}
+                            {/* 曜日ヘッダー ★text-center を追加し、Calendar.tsx と統一 */}
                             {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
                                 <div 
                                     key={day} 
@@ -264,7 +264,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                                 </div>
                             ))}
                             
-                            {/* 月の初めまでの空のマス */}
+                            {/* 月の初めまでの空のマス ★高さ h-28 に統一 */}
                             {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                                 <div key={`empty-${index}`} className="p-2 **h-28** border-r border-b border-gray-300 bg-gray-50"></div>
                             ))}
@@ -285,18 +285,18 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                                         className={`
                                             p-2 **h-28** border-r border-b border-gray-300 text-left transition-all duration-150 relative
                                             ${isPast ? 'bg-gray-100 cursor-not-allowed text-gray-400' : 'hover:bg-indigo-50 cursor-pointer'}
-                                            ${isToday && isFuture ? 'border-2 border-red-500 bg-red-50' : ''}
+                                            ${isToday && isFuture ? 'border-2 border-red-500 bg-red-50 z-10' : ''}
                                             ${isSelected ? 'bg-indigo-100 ring-2 ring-indigo-500 z-10' : ''}
                                         `}
                                         disabled={isPast}
                                     >
-                                        {/* 日付の数字は右上に寄せて、見やすくする */}
-                                        <div className={`text-sm font-bold mb-1 absolute top-1 right-2 
+                                        {/* 日付の数字 ★Calendar.tsx と同様に右上に配置 */}
+                                        <div className={`text-sm font-bold absolute top-2 right-2 
                                             ${day.getDay() === 0 ? 'text-red-700' : day.getDay() === 6 ? 'text-blue-700' : 'text-gray-800'}`}>
                                             {format(day, 'd')}
                                         </div>
-                                        {/* シフト情報は左上から少し下げて配置 */}
-                                        <div className="mt-6 text-center">
+                                        {/* シフト情報 ★mt-8 で日付の下にスペースを空ける */}
+                                        <div className="mt-8">
                                             {renderShiftInfo(dateStr)}
                                         </div>
                                     </button>
