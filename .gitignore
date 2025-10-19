@@ -1,37 +1,99 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.env
+# shift-app/.gitignore
 
-# Conda
-env/
-*.conda
-*.ipynb_checkpoints/
-
-# Node / Next.js
-node_modules/
-.next/
-out/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# OS
+##################################
+# 1. OS and Editor Files
+##################################
 .DS_Store
 Thumbs.db
-
-# VSCode / エディタ
 .vscode/
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+# Visual Studio / Windows
+*.user
+*.bak
+*.exe
 
-# dotenv
+##################################
+# 2. Python / Backend
+##################################
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Conda environment
+env/
+*.conda
+*.ipynb_checkpoints/
+
+##################################
+# 3. Node / Next.js / Frontend
+##################################
+# Dependencies
+/frontend/node_modules
+/frontend/.pnp
+/frontend/.pnp.*
+/frontend/yarn/*
+!/frontend/yarn/patches
+!/frontend/yarn/plugins
+!/frontend/yarn/releases
+!/frontend/yarn/versions
+
+# Next.js build output
+/frontend/.next/
+/frontend/out/
+/frontend/build
+/frontend/.vercel
+
+# Logs
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/.pnpm-debug.log*
+
+# TypeScript
+/frontend/*.tsbuildinfo
+# このファイルは通常Git管理しない方がいいけど、元ファイルにあったから除外（Next.jsが生成）
+/frontend/next-env.d.ts 
+
+# Testing
+/frontend/coverage
+
+##################################
+# 4. Flutter / Mobile
+##################################
+/mobile/.dart_tool/
+/mobile/.packages
+/mobile/.flutter-plugins
+/mobile/.flutter-plugins-dependencies
+/mobile/.pub-cache/
+/mobile/build/
+/mobile/ios/.symlinks/
+/mobile/android/.gradle
+# SDKパスなどが含まれるため
+/mobile/android/local.properties
+/mobile/ios/Flutter/Generated.xcconfig
+/mobile/ios/Flutter/App.framework
+/mobile/ios/Flutter/engine
+# Gitのコンフリクトを避けるため
+/mobile/ios/Runner/*.xcodeproj/project.pbxproj
+
+##################################
+# 5. Docker / Deployment
+##################################
+# Docker build context
+*.log
+!docker-compose.yml
+
+# Database / Secrets
+/instance/*.db
+*.pem
+# .env, .env.local, .env.production.localなど全て
+.env*
 .env
 .env.local
 .env.development.local
