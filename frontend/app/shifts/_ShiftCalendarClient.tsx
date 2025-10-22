@@ -7,6 +7,7 @@ import { useUser } from '@/app/context/UserContext';
 // 日付処理ライブラリをインポート
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { api } from "@/lib/api"; 
 
 // 型定義
 interface ShiftData {
@@ -45,29 +46,23 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
 
-    // APIから月間シフトデータを取得する関数 (useCallbackでメモ化)
+    // APIから月間シフトデータを取得する関数
     const fetchShifts = useCallback(async (y: number, m: number) => {
-        // ユーザー情報がない場合はAPIコールをスキップする
-        if (!user) {
-            return;
-        }
-
+        if (!user) return;
+        
         setIsLoading(true);
         setError(null);
-
+        
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            // fetch を使う場合、Cookie/セッションのための設定 'credentials: "include"' を追加
-            const res = await fetch(`${baseUrl}/shifts/month/${y}/${m}`, {
-                credentials: 'include' 
-            });
-            if (!res.ok) {
-                throw new Error('シフトデータの取得に失敗しました。');
+            const res = await api.get(`/shifts/month/${y}/${m}`);
+            setShiftsByDate(res.data.shifts_by_date || {});
+        } catch (err: any) {
+            console.error("シフト取得エラー:", err.response || err);
+            if (err.response?.status === 422) {
+                setError("認証エラー: 再ログインしてください。");
+            } else {
+                setError("データの取得に失敗しました。");
             }
-            const data = await res.json();
-            setShiftsByDate(data.shifts_by_date || {});
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'データの取得中に予期せぬエラーが発生しました。');
         } finally {
             setIsLoading(false);
         }

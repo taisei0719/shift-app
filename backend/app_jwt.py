@@ -1,0 +1,1011 @@
+# frontend/app.py
+
+
+import os
+from flask import Flask, request, jsonify, session
+from models import db, User, Shop, Shift
+from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
+from datetime import datetime, timedelta, date
+import random, string
+from dotenv import load_dotenv
+from sqlalchemy import text
+import time
+from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# JWTの設定
+app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY", "super-secret-jwt-key") # 秘密鍵を設定
+app.config["JWT_TOKEN_LOCATION"] = ["cookies"] 
+app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
+app.config["JWT_COOKIE_SECURE"] = False # HTTPSでのみクッキーを送信 (本番環境向けではTrue、開発中はFalse)
+app.config["JWT_COOKIE_SAMESITE"] = "Lax" # CSRF対策のためLaxまたはStrict
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) # トークンの有効期限
+app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
+
+# CSRF保護を一時的に無効化する設定
+app.config["JWT_COOKIE_CSRF_PROTECT"] = False
+
+jwt = JWTManager(app)
+
+#app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
+#app.secret_key = os.getenv("SECRET_KEY", "your_strong_secret_key_here")  
+
+
+# -------------------- Render/PostgreSQL 互換性修正 (必須) --------------------
+# RenderのPostgreSQLは 'postgres://' スキームで提供されるが、SQLAlchemy 2.0+ は 
+# 'postgresql://' を推奨するため、URIを修正する。
+database_url = os.getenv("DATABASE_URL", "sqlite:///shifts.db")
+if database_url and database_url.startswith("postgres://"):
+    # スキームを 'postgres://' から 'postgresql://' に置き換える
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# 接続プールのリサイクルを有効にする (PostgreSQLのアイドルタイムアウト対策)
+app.config['SQLALCHEMY_POOL_RECYCLE'] = 280 
+# 接続プールサイズをGunicornワーカー数(4)に合わせて設定する
+app.config['SQLALCHEMY_POOL_SIZE'] = 5 
+
+db.init_app(app)
+
+# Vercelの公開URLを設定するための環境変数を定義
+FRONTEND_URL = os.getenv("FRONTEND_URL") 
+
+# 許可するオリジンをリスト形式で定義
+# VercelのURLとローカルホストを両方許可することで、クッキー送信を確実にします。
+allowed_origins = [
+    "http://localhost:3000", # ローカル開発環境用
+    FRONTEND_URL             # Vercelのカスタムドメイン/プライマリURL
+]
+# Noneを除外する（念のため）
+final_origins = [o for o in allowed_origins if o is not None]
+
+CORS(
+    app, 
+    # resourcesを使う形式を維持し、originsにリストを渡す
+    resources={r"/api/*": {"origins": final_origins}},
+    supports_credentials=True, 
+    allow_headers=["Content-Type", "Authorization"] 
+)
+
+# -------------------- DBセッションの自動クローズ (Gunicorn環境で必須) --------------------
+@app.teardown_request
+def shutdown_session(exception=None):
+    # リクエスト終了時に、エラーの有無に関わらずセッションを確実にクローズ/解放する
+    # これにより、次のリクエストでは新しい接続が確立され、接続切断エラーを防ぐ
+    db.session.remove()
+
+# -------------------- DB接続待機 --------------------
+def wait_for_db():
+    with app.app_context():
+        # 最大20秒間、2秒間隔でデータベース接続を試行する
+        print("INFO: Waiting for database connection...")
+        for i in range(10): 
+            try:
+                # 接続テスト: 単純なSQLを実行してみる
+                db.session.execute(text('SELECT 1')) 
+                print("INFO: Database connection successful!")
+                return # 成功したら終了
+            except Exception as e:
+                # 失敗したら待機
+                print(f"WARNING: DB not ready yet (attempt {i+1}/10). Waiting 2 seconds...")
+                time.sleep(2)
+        
+        # 10回試行しても接続できなかった場合
+        print("ERROR: Database connection failed after multiple retries.")
+        # ここで終了するとWebサービスもクラッシュするので、そのまま続行させる（init_dbで失敗する）
+
+# -------------------- DB初期化 --------------------
+def init_db():
+    with app.app_context():
+        db.create_all()
+        if not User.query.filter_by(name='admin').first():
+            admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
+            db.session.add(admin)
+        if not User.query.filter_by(name='yamada').first():
+            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
+            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
+            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
+            db.session.add_all([staff1, staff2, staff3])
+        db.session.commit()
+
+# -------------------- API: ユーザー登録 (JWT 発行対応) --------------------
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = request.json
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+    # 登録時には role は 'staff' などのデフォルト値が設定されることを想定
+    role = data.get("role", "staff") 
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
+
+    user = User(
+        name=name,
+        email=email,
+        role=role,
+        password=generate_password_hash(password)
+    )
+    db.session.add(user)
+    db.session.commit() # ユーザーID (user.id) が確定する
+
+    # ★★★ 登録成功後、JWTトークンを発行する ★★★
+    
+    # 1. JWTペイロードに保存する情報を定義
+    identity_data = {
+        "user_id": user.id,
+        "user_name": user.name,
+        "role": user.role,
+        "shop_id": user.shop_id # 登録直後は None になるはず
+    }
+    
+    # 2. アクセストークンを生成
+    access_token = create_access_token(identity=identity_data) 
+    
+    # 3. ユーザー情報とトークンをフロントエンドに返す
+    return jsonify({
+        "message": "登録成功",
+        "access_token": access_token, # 自動ログイン用トークン
+        "user": {
+            "user_name": user.name,
+            "role": user.role,
+            "shop_name": None,
+            "shop_id": None
+        }
+    }), 201
+
+# -------------------- API: アカウント情報編集 (JWT 対応) --------------------
+@app.route("/api/account/edit", methods=["POST"])
+@jwt_required() # ★ JWTトークンが必須になる
+def edit_account():
+    # 1. ログインチェック (JWTからユーザーIDを取得)
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"]
+    
+    data = request.json
+    new_name = data.get("name")
+    new_email = data.get("email")
+    new_password = data.get("password") # パスワードは変更する場合のみ
+
+    # ユーザーオブジェクトを取得
+    user = db.session.get(User, user_id)
+    # トークンが有効でもDBにユーザーがいなかった場合
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    # 2. 名前の更新
+    if new_name:
+        user.name = new_name
+
+    # 3. メールの更新と重複チェック
+    if new_email and new_email != user.email:
+        # 他のユーザーが既にそのメールアドレスを使っていないかチェック (自分自身は除外)
+        if User.query.filter(User.email == new_email, User.id != user_id).first():
+            return jsonify({"error": "そのメールアドレスは既に使用されています"}), 400
+        user.email = new_email
+
+    # 4. パスワードの更新
+    if new_password:
+        # werkzeug.security の generate_password_hash を使用
+        user.password = generate_password_hash(new_password)
+
+    db.session.commit()
+    
+    # 5. 成功レスポンス
+    return jsonify({"message": "アカウント情報を更新しました"}), 200
+
+
+# -------------------- API: アカウント削除 (JWT 対応) --------------------
+@app.route("/api/account/delete", methods=["POST"])
+@jwt_required() # ★ JWTトークンが必須になる
+def delete_account():
+    # 1. ログインチェック (JWTからユーザーIDを取得)
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # トークンから user_id を取得
+    
+    # 2. ユーザーオブジェクトを取得
+    user = db.session.get(User, user_id)
+    # トークンが有効でもDBにユーザーがいなかった場合
+    if not user:
+        # トークンは有効なので、404を返す前にクライアント側でトークンを破棄することを推奨
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    try:
+        # 3. 関連データの削除
+        # ユーザーに紐づく全ての Shift を削除
+        Shift.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
+
+        # 4. ユーザーアカウント本体の削除
+        db.session.delete(user)
+        
+        # 5. セッション情報のクリア (JWTでは不要だが、念のためログイン/JWT情報削除)        
+        db.session.commit()
+        
+        # ログアウトメッセージと共に200を返し、フロントエンドにトークンの破棄を促す
+        return jsonify({"message": "アカウントを正常に削除しました"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        # ★ print(f"アカウント削除エラー: {e}") # 本番環境ではエラーをログに出力
+        return jsonify({"error": "アカウントの削除中にエラーが発生しました"}), 500
+
+# -------------------- API: ログイン (JWT対応版) --------------------
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.json
+    identifier = data.get("identifier")
+    password = data.get("password")
+
+    # 名前またはメールアドレスでユーザーを検索
+    user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
+    
+    if user and check_password_hash(user.password, password):
+        # ユーザーに紐づく店舗名を取得 (user.shopがNoneの場合を安全にチェック)
+        shop_name_val = user.shop.name if user.shop else None
+        
+        # 1. JWTペイロードに保存する情報を定義
+        identity_data = {
+            "user_id": user.id,
+            "user_name": user.name,
+            "role": user.role,
+            "shop_id": user.shop_id
+        }
+        
+        # 2. アクセストークンを生成
+        access_token = create_access_token(identity=identity_data) 
+
+        # 3. レスポンスオブジェクトを作成
+        response = jsonify({ 
+            "message": "ログイン成功", 
+            "access_token": access_token, # モバイル/Webが保存するトークン
+            "user": {
+                "user_name": user.name,
+                "role": user.role,
+                "shop_name": shop_name_val,
+                "shop_id": user.shop_id 
+            }
+        })
+        
+        # 4. ★★★ 必須: クッキーを設定してからリターンする ★★★
+        set_access_cookies(response, access_token) 
+
+        # 5. レスポンスオブジェクトとステータスコードを返す
+        return response, 200
+        
+    # 認証失敗
+    return jsonify({"error": "ユーザー名かパスワードが違います"}), 401
+
+# -------------------- API: ログアウト (JWT対応版) --------------------
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    # 1. レスポンスオブジェクトを生成
+    response = jsonify({"message": "ログアウト成功"})
+    
+    # 2. JWT クッキーを削除 (クライアントにトークン破棄を指示)
+    # クッキーを使ってJWTをやり取りしている場合に必須
+    unset_jwt_cookies(response) 
+    
+    # session.clear() # ★ セッションクリアは削除
+    
+    return response # 修正後のレスポンスを返す
+
+# -------------------- API: シフト提出 (JWT 対応版) --------------------
+@app.route("/api/shifts/submit_request", methods=["POST"]) 
+@jwt_required() # ★ JWT認証必須
+def submit_shift_request():
+    # 1. ログイン/所属店舗チェック (JWTからユーザー情報を取得)
+    current_user_data = get_jwt_identity() # ★ トークンからペイロードを取得
+    user_id = current_user_data["user_id"] # ★ トークンから user_id を取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから shop_id を取得
+    
+    # jwt_required() によりログインチェックは不要
+    if not shop_id:
+        return jsonify({"error": "店舗に所属していません"}), 400
+
+    data = request.json
+    submitted_requests = data.get("requests", []) 
+
+    if not submitted_requests:
+        return jsonify({"error": "シフトデータがありません"}), 400
+
+    # 提出されたリクエストは全て同じ日付のはずなので、最初のエントリから日付を取得
+    date_str = submitted_requests[0].get("date") 
+    
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
+
+    # 2. 同じ日の既存の 'request' シフトを全て削除 (上書き提出と見なす)
+    Shift.query.filter(
+        Shift.user_id == user_id, 
+        Shift.shift_date == target_date,
+        Shift.shift_type == 'request'
+    ).delete(synchronize_session='fetch')
+    
+    # 3. 新しいシフト希望を全て Shift モデルに登録
+    new_request_count = 0
+    
+    for req_data in submitted_requests:
+        start_time_str = req_data.get("start")
+        end_time_str = req_data.get("end")
+
+        if not start_time_str or start_time_str == "00:00" or not end_time_str or end_time_str == "00:00":
+             continue
+        
+        try:
+            start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
+            end_time_obj = datetime.strptime(end_time_str, '%H:%M').time()
+        except ValueError:
+             continue
+        
+        # Shiftモデルにデータを格納
+        new_shift = Shift(
+            user_id=user_id,
+            shop_id=shop_id,
+            shift_date=target_date,
+            start_time=start_time_obj,
+            end_time=end_time_obj,
+            shift_type='request' # 希望として登録
+        )
+        db.session.add(new_shift)
+        new_request_count += 1
+
+    db.session.commit()
+
+    return jsonify({"message": f"日付 {date_str} のシフト希望を{new_request_count}件登録しました！"})
+
+# -------------------- API: 指定年月の店舗別シフト状況取得 (JWT 対応 Admin専用) --------------------
+@app.route("/api/admin/shifts/status/<int:year>/<int:month>", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_monthly_shift_status(year, month):
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから取得
+    role = current_user_data.get("role") # ★ トークンから取得
+    
+    # 1. ログイン/権限/所属店舗チェック
+    if role != 'admin': # ★ roleをトークンからチェック
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    if not shop_id: # ★ shop_idをトークンからチェック
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    try:
+        # 2. 期間の計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(year, month + 1, 1) - timedelta(days=1)
+            
+    except ValueError:
+        return jsonify({"error": "年月の指定が不正です"}), 400
+
+    # 3. 店舗の全シフト（希望/確定）を期間で取得 (ロジックは変更なし)
+    all_shifts = Shift.query.filter(
+        Shift.shop_id == shop_id,
+        Shift.shift_date >= start_date,
+        Shift.shift_date <= end_date,
+        Shift.shift_type.in_(['request', 'confirmed']) 
+    ).all()
+
+    # 4. 日ごとのシフト状況を集計
+    daily_status: dict[str, str] = {}
+    
+    # 全ての従業員（店舗所属者）を取得 (この行は shop_id を使っているので、変更なしで機能する)
+    all_staff_ids = [u.id for u in User.query.filter(User.shop_id == shop_id).all()]
+    
+    # 対象期間内の全ての日付を生成
+    current_day = start_date
+    while current_day <= end_date:
+        date_str = current_day.strftime('%Y-%m-%d')
+        daily_status[date_str] = 'no_requests' 
+        current_day += timedelta(days=1)
+
+    # シフトデータを日付ごとにループ処理
+    for shift in all_shifts:
+        date_str = shift.shift_date.strftime('%Y-%m-%d')
+        current_status = daily_status.get(date_str, 'no_requests')
+
+        if shift.shift_type == 'confirmed':
+            daily_status[date_str] = 'confirmed'
+        elif shift.shift_type == 'request' and current_status != 'confirmed':
+            daily_status[date_str] = 'requested'
+
+    # 5. フロントエンドが期待する形式に変換（リスト形式）
+    monthly_status_list = [
+        {"date": date_str, "status": status}
+        for date_str, status in daily_status.items()
+    ]
+    
+    # 6. JSONレスポンスとして返す
+    return jsonify({"monthly_status": monthly_status_list}), 200
+
+# -------------------- API: 指定日のシフト一覧取得/調整用 (JWT 対応 Admin専用) --------------------
+@app.route("/api/admin/shifts/<date_str>", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_shifts_for_admin(date_str):
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから取得
+    role = current_user_data.get("role") # ★ トークンから取得
+    
+    # 1. ログイン/権限/所属店舗チェック
+    if role != 'admin': # ★ roleをトークンからチェック
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    if not shop_id: # ★ shop_idをトークンからチェック
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    try:
+        # 2. 日付を datetime.date オブジェクトに変換
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
+
+    # 3. 自分の店舗の、指定日における全てのシフトを取得 (ロジックは変更なし)
+    shifts_data = Shift.query.filter(
+        Shift.shop_id == shop_id,
+        Shift.shift_date == target_date,
+        Shift.shift_type.in_(['request', 'confirmed']) # 希望と確定済みの両方を取得
+    ).all()
+    
+    # 4. ユーザーごとにデータを整理 (ロジックは変更なし)
+    staff_data = {}
+    
+    for shift in shifts_data:
+        user_id_key = shift.user_id
+        
+        if user_id_key not in staff_data:
+            staff_data[user_id_key] = {
+                "user_id": user_id_key,
+                "name": shift.user.name,
+                "role": shift.user.role,
+                "requests": [],
+                "confirmed": []
+            }
+            
+        shift_info = shift.to_dict() 
+        
+        if shift.shift_type == 'request':
+            staff_data[user_id_key]['requests'].append(shift_info)
+        elif shift.shift_type == 'confirmed':
+            staff_data[user_id_key]['confirmed'].append(shift_info)
+
+    return jsonify({"staff_shifts": list(staff_data.values())}), 200
+
+# -------------------- API: シフト確定・手動調整 (JWT 対応 Admin専用) --------------------
+@app.route("/api/admin/shifts/confirm", methods=["POST"])
+@jwt_required() # ★ JWT認証必須
+def confirm_shifts():
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから取得
+    role = current_user_data.get("role") # ★ トークンから取得
+    
+    # 1. ログイン/権限/所属店舗チェック
+    if role != 'admin': # ★ roleをトークンからチェック
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    if not shop_id: # ★ shop_idをトークンからチェック
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    data = request.json
+    confirmed_shifts_data = data.get("confirmed_shifts", [])
+    
+    if not confirmed_shifts_data:
+        return jsonify({"error": "確定シフトデータがありません"}), 400
+        
+    try:
+        # データから日付を取得（全て同じ日付のはず）
+        date_str = confirmed_shifts_data[0]['shift_date']
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        target_user_ids = [shift['user_id'] for shift in confirmed_shifts_data]
+        
+        # 2. 既存の確定・希望シフトを全て削除 (上書きするため)
+        # 削除対象のシフトを読み込む (confirmed だけでなく request も含め、全てを一度クリアする)
+        shifts_to_delete = Shift.query.filter(
+            Shift.shop_id == shop_id,
+            Shift.shift_date == target_date,
+            # 'request' も 'confirmed' も、今回確定処理を行うユーザーの分だけを対象にする
+            Shift.user_id.in_(target_user_ids) 
+        ).all()
+        
+        # 読み込んだオブジェクトを一つずつ削除
+        for shift in shifts_to_delete:
+            db.session.delete(shift)
+        
+        # ここで削除をDBに確定させる（これがないと新規追加と競合する可能性あり）
+        db.session.commit()
+
+        new_confirmed_shifts = []
+        
+        # 3. 新しい確定シフトをDBに追加
+        for shift_data in confirmed_shifts_data:
+            user_id_to_add = shift_data.get('user_id')
+            
+            # 入力チェック (user_id, start_time, end_time が必須)
+            if 'user_id' not in shift_data or 'start_time' not in shift_data or 'end_time' not in shift_data:
+                 continue # 不正なデータはスキップ
+              
+            start_time_obj = datetime.strptime(shift_data['start_time'], '%H:%M').time()
+            end_time_obj = datetime.strptime(shift_data['end_time'], '%H:%M').time()
+            
+            new_shift = Shift(
+                user_id=shift_data['user_id'],
+                shop_id=shop_id,
+                shift_date=target_date,
+                start_time=start_time_obj,
+                end_time=end_time_obj,
+                shift_type='confirmed' # 確定済みとして登録
+            )
+            db.session.add(new_shift)
+            new_confirmed_shifts.append(new_shift)
+
+        db.session.commit()
+        return jsonify({"message": f"日付 {date_str} のシフトを{len(new_confirmed_shifts)}件確定しました。"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        # db.session.remove() # ここはFlask-SQLAlchemyのデフォルト設定で不要な場合が多いが、念のため残す
+        print(f"シフト確定エラー: {e}")
+        return jsonify({"error": f"シフト確定処理中にエラーが発生しました: {str(e)}"}), 500
+    
+# -------------------- API: 指定日の自分の確定シフト取得 (JWT 対応 Staff/Admin 向け) --------------------
+@app.route("/api/shifts/<date_str>", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_shifts(date_str):
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから user_id を取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから shop_id を取得
+    
+    # 2. 所属店舗チェック
+    # jwt_required() によりログインチェックは不要
+    if not shop_id:
+        # ユーザーオブジェクトの取得は不要になった
+        return jsonify({"error": "所属店舗が登録されていません"}), 400
+    
+    try:
+        # 3. 日付変換
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
+
+    # 4. 自分の確定シフトのみを取得 (ロジックは変更なし)
+    shifts = Shift.query.filter(
+        Shift.user_id == user_id,
+        Shift.shop_id == shop_id,
+        Shift.shift_date == target_date,
+        Shift.shift_type == 'confirmed'
+    ).all()
+
+    # 5. レスポンス整形
+    if not shifts:
+        return jsonify({"message": f"{date_str} の確定シフトはありません。", "confirmed_shifts": []}), 200
+
+    confirmed_shifts_list = [shift.to_dict() for shift in shifts]
+
+    return jsonify({"confirmed_shifts": confirmed_shifts_list}), 200
+
+# -------------------- API: 指定年月の自分の全シフト取得 (JWT 対応 Staff/Admin 向け) --------------------
+@app.route("/api/shifts/month/<int:year>/<int:month>", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_user_shifts_by_month(year, month):
+    #debug
+    print("JWT IDENTITY:", get_jwt_identity())
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから user_id を取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから shop_id を取得
+    
+    # 2. 所属店舗チェック
+    if not shop_id:
+        return jsonify({"error": "所属店舗が登録されていません"}), 400
+
+    try:
+        # 3. 期間の計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = date(year, month + 1, 1) - timedelta(days=1)
+            
+    except ValueError:
+        return jsonify({"error": "年月の指定が不正です"}), 400
+
+    # 4. 自分の全シフト（希望/確定）を取得 (ロジックは変更なし)
+    shifts = Shift.query.filter(
+        Shift.user_id == user_id,
+        Shift.shop_id == shop_id,
+        Shift.shift_date >= start_date,
+        Shift.shift_date <= end_date,
+        Shift.shift_type.in_(['request', 'confirmed']) # 希望と確定の両方
+    ).all()
+
+    # 5. レスポンス整形 (ロジックは変更なし)
+    if not shifts:
+        return jsonify({"message": f"{year}年{month}月のシフトはありません。", "shifts_by_date": {}}), 200
+
+    # 日付ごとの辞書に格納 { "YYYY-MM-DD": [shift_dict, ...], ... }
+    shifts_by_date = {}
+    for shift in shifts:
+        date_key = shift.shift_date.strftime('%Y-%m-%d')
+        if date_key not in shifts_by_date:
+            shifts_by_date[date_key] = []
+        
+        shifts_by_date[date_key].append(shift.to_dict()) 
+
+    return jsonify({"shifts_by_date": shifts_by_date}), 200
+
+# -------------------- API: 店舗登録 (JWT 対応版) --------------------
+@app.route("/api/shop_register", methods=["POST"])
+@jwt_required(fresh=True) # ★ JWT認証必須 (機密性の高い操作なので fresh=True を推奨)
+def shop_register():
+    # 1. ユーザー情報と権限チェック
+    current_user_data = get_jwt_identity() # ★ トークンからペイロードを取得
+    manager_id = current_user_data["user_id"]
+    role = current_user_data.get("role")
+    
+    if role != "admin": # ★ ロールチェックをトークンから
+        return jsonify({"error": "管理者権限がありません"}), 403
+
+    data = request.json
+    name = data.get("name")
+    location = data.get("location")
+
+    if Shop.query.filter_by(name=name).first():
+        return jsonify({"error": "店舗名が既に存在します"}), 400
+
+    # 2. 店舗を登録
+    code = Shop.generate_unique_code()
+    shop = Shop(name=name, location=location, shop_code=code)
+    db.session.add(shop)
+    db.session.commit() # 店舗のID (shop.id) を確定させる
+    
+    # 3. 管理者ユーザーの情報を更新
+    admin_user = User.query.get(manager_id)
+    
+    if admin_user:
+        admin_user.shop_id = shop.id 
+        # session["shop_name"] = shop.name # ★ セッションの更新は不要
+        db.session.commit() # DBの変更をコミット
+    
+    # 4. ★ 新しい shop_id を含む JWT ペイロードを作成し、トークンを再発行する
+    new_payload = {
+        "user_id": admin_user.id,
+        "name": admin_user.name,
+        "role": admin_user.role,
+        "shop_id": admin_user.shop_id, # ★ 新しい shop_id を含める
+        "shop_name": shop.name # ★ 新しい shop_name も含める
+    }
+    
+    # 新しいトークンを生成
+    new_access_token = create_access_token(identity=new_payload, fresh=True) # fresh=True で次回ログイン時に再度 fresh トークンを使えるようにする
+    new_refresh_token = create_refresh_token(identity=new_payload) 
+
+    # 5. レスポンスオブジェクトの生成とクッキーへのセット
+    response = jsonify({
+        "message": "店舗登録成功", 
+        "shop_code": code,
+        "shop_id": shop.id,
+        #"access_token": new_access_token # クライアント側の利便性のためレスポンスにも含める
+    })
+    
+    set_access_cookies(response, new_access_token) # ★ アクセストークンをクッキーにセット
+    set_refresh_cookies(response, new_refresh_token) # ★ リフレッシュトークンをクッキーにセット
+
+    return response
+
+# -------------------- API: 店舗参加リクエスト (JWT 対応版) --------------------
+@app.route('/api/join_shop/request', methods=['POST'])
+@jwt_required() # ★ JWT認証必須
+def join_shop_request():
+    data = request.get_json()
+    shop_code = data.get('shop_code')
+    
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから取得
+    
+    # 2. ユーザーの取得と所属チェック
+    user = db.session.get(User, user_id) # ★ user_id を使ってユーザー情報をDBから取得
+    
+    if not user:
+         return jsonify({"error": "ユーザーが見つかりません"}), 404
+         
+    # トークンに shop_id が含まれている場合もここでチェックできる
+    # user.shop_id または current_user_data.get("shop_id") があれば既に所属している
+    if user.shop_id: 
+        return jsonify({"error": "既に店舗に所属しています"}), 400
+
+    # 3. 店舗コードの検証
+    shop = Shop.query.filter_by(shop_code=shop_code).first()
+    if not shop:
+        return jsonify({"error": "無効な店舗コードです"}), 404
+
+    # 4. リクエスト送信（Userモデルの暫定カラムを更新）
+    user.shop_request_code = shop_code
+    db.session.commit()
+
+    return jsonify({"message": f"店舗 '{shop.name}' への参加リクエストをオーナーに送信しました。"}), 200
+    
+# -------------------- API: 参加リクエスト一覧取得 (JWT 対応 Admin専用) --------------------
+@app.route("/api/join_requests", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_join_requests():
+    # 1. JWTからユーザー情報と権限をチェック
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # ★ トークンから取得
+    role = current_user_data.get("role") # ★ トークンから取得
+    shop_id = current_user_data.get("shop_id") # ★ トークンから取得
+    
+    if role != "admin":
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    
+    if not shop_id:
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    # 2. 自分の店舗コードを取得
+    shop = db.session.get(Shop, shop_id) # shop_id はトークンから取得済み
+    if not shop:
+        return jsonify({"error": "店舗が見つかりません"}), 404
+    
+    target_code = shop.shop_code
+
+    # 3. その店舗コードでリクエスト中のユーザーを全て検索 (ロジックは変更なし)
+    requests = User.query.filter(
+        User.shop_id == None, 
+        User.shop_request_code == target_code
+    ).all()
+    
+    # 4. JSON形式でリクエストユーザーの一覧を返す (ロジックは変更なし)
+    request_list = [{
+        "user_id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "request_date": "N/A"
+    } for user in requests]
+
+    return jsonify({"requests": request_list}), 200
+
+
+# -------------------- API: 参加リクエスト承認/拒否 (JWT 対応 Admin専用) --------------------
+@app.route("/api/join_requests/<int:user_id>", methods=["POST"])
+@jwt_required() # ★ JWT認証必須
+def handle_join_request(user_id):
+    # 1. JWTから管理者ユーザー情報と権限をチェック
+    current_user_data = get_jwt_identity()
+    admin_id = current_user_data["user_id"] # ★ トークンから取得
+    role = current_user_data.get("role") # ★ トークンから取得
+    admin_shop_id = current_user_data.get("shop_id") # ★ 管理者が所属する店舗ID (トークンから取得)
+    
+    if role != "admin":
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    
+    if not admin_shop_id:
+        # 自分の店舗がないと承認できない
+        return jsonify({"error": "管理店舗が登録されていません"}), 400
+
+    data = request.json
+    action = data.get("action") # 'approve' または 'reject'
+
+    # 2. 対象ユーザーを取得
+    target_user = db.session.get(User, user_id)
+    if not target_user:
+        return jsonify({"error": "対象ユーザーが見つかりません"}), 404
+
+    # 3. アクションの実行
+    if action == "approve":
+        # ★ 承認処理: user.shop_id を管理者の店舗IDに設定し、リクエストコードをクリア
+        target_user.shop_id = admin_shop_id # ★ トークンから取得した shop_id を使用
+        target_user.shop_request_code = None
+        message = f"ユーザー {target_user.name} を店舗に承認しました。次回ログイン時にユーザーのトークンが更新されます。"
+    
+    elif action == "reject":
+        # ★ 拒否処理: リクエストコードのみをクリア
+        target_user.shop_request_code = None
+        message = f"ユーザー {target_user.name} の参加リクエストを拒否しました。"
+
+    else:
+        return jsonify({"error": "無効なアクションです"}), 400
+
+    db.session.commit()
+
+    return jsonify({"message": message}), 200
+
+# -------------------- API: 店舗詳細取得 (JWT 対応版) --------------------
+@app.route("/api/shop/<int:shop_id>", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_shop_detail(shop_id):
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    user_id = current_user_data["user_id"] # user_id は使わないが取得
+    user_shop_id = current_user_data.get("shop_id") # ★ トークンから所属店舗IDを取得
+    
+    # 2. アクセス権限のチェック
+    # ユーザーが店舗に所属していない場合 (None) または、
+    # リクエストされた shop_id (URL) が所属店舗ID (トークン) と一致しない場合
+    if not user_shop_id or user_shop_id != shop_id: 
+        return jsonify({"error": "アクセス権限がありません"}), 403 # 403 Forbidden
+
+    # 3. 店舗が存在するかチェック
+    # アクセス権限チェックで実質的にチェック済みだが、念のためDBから取得
+    shop = db.session.get(Shop, shop_id)
+    if not shop:
+         # 非常に稀なケース（ユーザーのshop_idがDBから削除された場合など）
+        return jsonify({"error": "店舗が見つかりません"}), 404
+        
+    # 4. JSONで返す (ロジックは変更なし)
+    return jsonify({
+        "name": shop.name,
+        "location": shop.location,
+        "shop_code": shop.shop_code,
+        "shop_id": shop.id 
+    })
+
+# -------------------- API: 店舗情報更新 (JWT 対応 Admin専用) --------------------
+@app.route("/api/shop/<int:shop_id>", methods=["POST"])
+@jwt_required() # ★ JWT認証必須
+def update_shop_detail(shop_id):
+    # 1. JWTから管理者情報と権限を取得
+    current_user_data = get_jwt_identity()
+    role = current_user_data.get("role") # ★ トークンから取得
+    admin_shop_id = current_user_data.get("shop_id") # ★ トークンから管理店舗IDを取得
+    
+    # 2. 権限と自分の管理店舗IDかチェック
+    if role != "admin":
+        return jsonify({"error": "管理者権限が必要です"}), 403
+    
+    if not admin_shop_id or admin_shop_id != shop_id:
+        return jsonify({"error": "自分の管理する店舗の情報しか更新できません"}), 403
+
+    shop = db.session.get(Shop, shop_id)
+    if not shop:
+        return jsonify({"error": "店舗が見つかりません"}), 404
+
+    data = request.json
+    new_name = data.get("name")
+    new_location = data.get("location")
+    
+    # 店舗名が変更されたかどうかのフラグ
+    name_changed = False
+
+    # 3. 店舗名の重複チェック (更新対象の店舗名自身は除外する)
+    if new_name and new_name != shop.name:
+        if Shop.query.filter_by(name=new_name).first():
+            return jsonify({"error": "その店舗名は既に使われています"}), 400
+        
+        name_changed = True # ★ 店舗名変更フラグを立てる
+
+    # 4. データ更新
+    if new_name:
+        shop.name = new_name
+        # session["shop_name"] = new_name # ★ セッション更新は削除
+    if new_location is not None:
+        shop.location = new_location
+
+    db.session.commit()
+    
+    # 5. ★ 店舗名が変更された場合は新しい情報を含むJWTを再発行
+    if name_changed:
+        # 新しいJWTペイロードを作成
+        new_payload = {
+            "user_id": current_user_data["user_id"],
+            "name": current_user_data["name"], 
+            "role": current_user_data["role"], 
+            "shop_id": shop.id,
+            "shop_name": shop.name # ★ 更新された店舗名をセット
+        }
+        
+        # 新しいトークンを生成
+        new_access_token = create_access_token(identity=new_payload)
+        new_refresh_token = create_refresh_token(identity=new_payload) 
+
+        # レスポンスオブジェクトの生成とクッキーへのセット
+        response = jsonify({"message": "店舗情報を更新しました。トークンを更新しました。"})
+        set_access_cookies(response, new_access_token) # ★ アクセストークンをクッキーにセット
+        set_refresh_cookies(response, new_refresh_token) # ★ リフレッシュトークンをクッキーにセット
+        
+        return response
+    
+    # 店舗名が変わらなかった場合は、通常のレスポンスを返す
+    return jsonify({"message": "店舗情報を更新しました"})
+
+# -------------------- API: 店舗の従業員一覧取得 (JWT 対応版) --------------------
+# from flask_jwt_extended import jwt_required, get_jwt_identity # インポートされていることを前提とする
+
+@app.route("/api/shops/<int:shop_id>/users", methods=["GET"])
+@jwt_required() # ★ JWT認証必須
+def get_shop_users(shop_id):
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity()
+    # current_user_id = current_user_data["user_id"] # 今回は使用しないが取得可能
+    user_shop_id = current_user_data.get("shop_id") # ★ トークンから所属店舗IDを取得
+    
+    # 2. 権限チェック: ユーザーが要求された店舗に所属しているか？
+    # ユーザーが店舗に所属していない場合 (None) または、
+    # リクエストされた shop_id (URL) が所属店舗ID (トークン) と一致しない場合
+    if not user_shop_id or user_shop_id != shop_id: 
+        return jsonify({"error": "この店舗の情報にアクセスする権限がありません"}), 403
+
+    # 3. 店舗に所属する全ユーザーを取得 (ロジックは変更なし)
+    users_in_shop = User.query.filter_by(shop_id=shop_id).all()
+    
+    user_list = []
+    for user in users_in_shop:
+        user_list.append({
+            "user_id": user.id,
+            "user_name": user.name,
+            "role": user.role,
+            "is_owner": user.role == 'admin' # 'owner'がDBになければ'admin'で判断
+        })
+
+    # 4. 店舗情報を取得
+    shop = db.session.get(Shop, shop_id)
+    # 権限チェックでshop_idが有効と分かっているため、shopが存在しない可能性は低いが念のためチェック
+    if not shop:
+        return jsonify({"error": "店舗が見つかりません"}), 404
+        
+    shop_info = {
+        "id": shop.id,
+        "name": shop.name,
+        "location": shop.location
+    }
+
+    return jsonify({
+        "shop": shop_info,
+        "users": user_list
+    }), 200
+
+# -------------------- API: セッション取得 (JWT対応版) --------------------
+@app.route("/api/session")
+@jwt_required(optional=True) # ★ トークンがなくても関数が実行されるようにする
+def get_session():
+    # 1. JWTからユーザー情報を取得
+    current_user_data = get_jwt_identity() 
+    
+    # 2. トークンが存在しない、または無効な場合は、未ログインとして処理
+    if current_user_data is None:
+        # 未ログインの場合は user: None を返し、200 OK でレスポンスを確定させる
+        return jsonify({"user": None}), 200 
+
+    # 3. トークンが有効な場合の処理
+    user_id = current_user_data["user_id"]
+    user_from_db = User.query.get(user_id) 
+
+    if user_from_db:
+        # 最新のユーザー情報をDBから取得して返す
+        return jsonify({
+            "user": {
+                "user_name": user_from_db.name,
+                "role": user_from_db.role,
+                "shop_name": user_from_db.shop.name if user_from_db.shop else None, 
+                "shop_id": user_from_db.shop_id, 
+                "shop_request_code": user_from_db.shop_request_code
+            }
+        }), 200 # 成功時は200を明示
+        
+    # トークンは有効だけどDBにユーザーがいなかった場合
+    return jsonify({"user": None}), 200 # この場合も未ログインとして扱う
+
+
+
+
+# 開発用
+if __name__ == "__main__":
+    with app.app_context():
+        init_db()
+    app.run(debug=True)
+

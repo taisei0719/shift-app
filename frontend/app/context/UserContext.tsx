@@ -46,7 +46,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const userData = res.data.user;
 
       if (userData) {
-        // ★ 修正: サーバーから返された全データ（shop_request_codeを含む）をセット
+        // サーバーから返された全データ（shop_request_codeを含む）をセット
         // userData に shop_request_code が含まれていることを前提とする
         setUser(userData as UserInfo);
       } else {

@@ -1,3 +1,5 @@
+# backend/models.py
+
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash # パスワードハッシュ化関数も移動
 import secrets 
