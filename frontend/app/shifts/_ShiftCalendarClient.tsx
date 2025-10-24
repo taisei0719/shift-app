@@ -14,7 +14,7 @@ interface ShiftData {
     id: number;
     shift_date: string; // YYYY-MM-DD
     start_time: string; // HH:MM
-    end_time: string;   // HH:MM
+    end_time: string;   // HH:MM
     shift_type: 'request' | 'confirmed';
 }
 
@@ -29,7 +29,7 @@ interface Props {
 
 export default function ShiftCalendarClient({ initialYear, initialMonth }: Props) {
     const router = useRouter();
-    const { user } = useUser();
+    const { user, loading } = useUser();
     // 表示する年月
     const [currentDate, setCurrentDate] = useState(new Date(initialYear, initialMonth - 1, 1));
     // ロードされたシフトデータ
@@ -45,6 +45,44 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
+
+    const shop = user?.shop_id ? {} : null; // 表示判定のためだけに利用
+    const isAdmin = user?.role === 'admin';
+
+    // ロード中の表示
+    if (loading) {
+        return <div className="text-center py-10 text-gray-500">ユーザー情報を確認中...</div>;
+    }
+
+    if (!shop) {
+        const register_path = isAdmin ? "/shop_register" : "/staff_shop_register";
+        const register_label = isAdmin ? "店舗登録ページへ移動" : "店舗参加（コード入力）へ移動"; 
+        
+        return (
+          <div className="min-h-screen flex flex-col items-center py-10 bg-gray-50">
+            <div className="w-full max-w-lg p-8 space-y-6 bg-white shadow-xl rounded-lg border border-gray-200 text-center">
+                <h1 className="text-2xl font-bold text-gray-900">店舗未登録</h1>
+                <p className="text-gray-600">店舗を登録してシフトを提出しましょう!</p>
+                
+                <div className="space-y-3 pt-4">
+                    {/* 登録・参加ボタン */}
+                    <button 
+                      onClick={() => router.push(register_path)}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150"
+                    >
+                        {register_label}
+                    </button>
+                </div>
+            </div>
+          </div>
+        );
+    }
+
+    // 店舗未所属の場合、useEffectでリダイレクトされるため、ここには到達しないはずだが、
+    // 万一の場合に備えてローディング画面を残す
+    if (!user || !user.shop_id) {
+        return <div className="text-center py-10 text-gray-500">店舗情報へのリダイレクトを待機中...</div>;
+    }
 
     // APIから月間シフトデータを取得する関数
     const fetchShifts = useCallback(async (y: number, m: number) => {
@@ -129,26 +167,17 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         }];
 
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const res = await fetch(`${baseUrl}/shifts/submit_request`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ requests: shiftData }),
-            });
-
-            const data = await res.json();
+            // ★ 修正: api.post を使用する
+            const res = await api.post(`/shifts/submit_request`, { requests: shiftData });
             
-            if (res.ok) {
-                // 成功したらデータを再取得してカレンダーを更新
-                setMessage(isDayOff ? '休み希望を提出しました！' : 'シフト希望を提出・更新しました！');
-                await fetchShifts(year, month);
-            } else {
-                setMessage(`提出失敗: ${data.error || 'サーバーエラー'}`);
-            }
+            // 成功
+            setMessage(isDayOff ? '休み希望を提出しました！' : 'シフト希望を提出・更新しました！');
+            await fetchShifts(year, month);
 
-        } catch (err) {
-            setMessage('提出中にエラーが発生しました。');
+        // Axios/api utilityはエラー時に throw するため、catchブロックでエラー処理を行う
+        } catch (err: any) {
+            const errorMsg = err.response?.data?.error || 'サーバーエラー';
+            setMessage(`提出失敗: ${errorMsg}`);
         } finally {
             setIsLoading(false);
         }

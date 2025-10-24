@@ -38,7 +38,7 @@ export default function ShopUsersPage() {
     const [error, setError] = useState<string | null>(null);
 
     // 認証とデータ取得
-    useEffect(() => {  
+    useEffect(() => {  
         if (loading) return; // Contextのloadingがtrueの間は待機する
 
         if (!user) {// ユーザーがロード完了後、未ログインの場合はトップへリダイレクト
@@ -48,7 +48,7 @@ export default function ShopUsersPage() {
 
         // ログイン済みだが、店舗未所属の場合はリダイレクト (ここではリターンのみ)
         if (user.shop_id === null) {
-            // 店舗詳細のページと同じロジックを適用
+            setIsLoading(false);
             return;
         }
 
@@ -91,11 +91,37 @@ export default function ShopUsersPage() {
     // ----------------------------------------------------------------------
     // ★ ローディング/エラー表示
     // ----------------------------------------------------------------------
+    const isAdmin = user?.role === 'admin';
     if (loading || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <p className="text-gray-600">データを読み込み中...</p>
             </div>
+        );
+    }
+
+    // user がロード完了し、isLoading が false になった後、店舗未所属を判定
+    if (!user || user.shop_id === null) { // userがnull（未ログイン）の場合はuseEffectでリダイレクト済み
+        const register_path = isAdmin ? "/shop_register" : "/staff_shop_register";
+        const register_label = isAdmin ? "店舗登録ページへ移動" : "店舗参加（コード入力）へ移動"; 
+        
+        return (
+          <div className="min-h-screen flex flex-col items-center py-10 bg-gray-50">
+            <div className="w-full max-w-lg p-8 space-y-6 bg-white shadow-xl rounded-lg border border-gray-200 text-center">
+                <h1 className="text-2xl font-bold text-gray-900">店舗未登録</h1>
+                <p className="text-gray-600">店舗を登録してシフトを提出しましょう!</p>
+                
+                <div className="space-y-3 pt-4">
+                    {/* 登録・参加ボタン */}
+                    <button 
+                      onClick={() => router.push(register_path)}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150"
+                    >
+                        {register_label}
+                    </button>
+                </div>
+            </div>
+          </div>
         );
     }
 
