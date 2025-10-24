@@ -28,7 +28,7 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) # トークンの有
 app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
 
 # CSRF保護を一時的に無効化する設定
-app.config["JWT_COOKIE_CSRF_PROTECT"] = False
+# app.config["JWT_COOKIE_CSRF_PROTECT"] = False
 
 jwt = JWTManager(app)
 
