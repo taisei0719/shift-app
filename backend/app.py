@@ -344,7 +344,7 @@ def login():
         })
         
         # 4. クッキーを設定してからリターンする
-        # set_access_cookies(response, access_token) 
+        set_access_cookies(response, access_token) 
 
         # 5. レスポンスオブジェクトとステータスコードを返す
         return response, 200
