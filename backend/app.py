@@ -70,7 +70,8 @@ final_origins = [o for o in allowed_origins if o is not None]
 CORS(
     app, 
     # resourcesを使う形式を維持し、originsにリストを渡す
-    resources={r"/api/*": {"origins": final_origins}},
+    # resources={r"/api/*": {"origins": final_origins}}, #本番環境
+    resources={r"/api/*": {"origins": "*"}}, #開発環境
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 )
@@ -342,7 +343,7 @@ def login():
         })
         
         # 4. クッキーを設定してからリターンする
-        set_access_cookies(response, access_token) 
+        # set_access_cookies(response, access_token) 
 
         # 5. レスポンスオブジェクトとステータスコードを返す
         return response, 200
@@ -1106,8 +1107,8 @@ def get_session():
 
 
 # 開発用
-# if __name__ == "__main__":
-#     with app.app_context():
-#         init_db()
-#     app.run(debug=True)
+if __name__ == "__main__":
+    with app.app_context():
+        init_db()
+    app.run(debug=True)
 
