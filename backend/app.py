@@ -62,6 +62,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL")
 # VercelのURLとローカルホストを両方許可することで、クッキー送信を確実にします。
 allowed_origins = [
     "http://localhost:3000", # ローカル開発環境用
+    "http://localhost:60146", # Flutter開発環境用
     FRONTEND_URL             # Vercelのカスタムドメイン/プライマリURL
 ]
 # Noneを除外する（念のため）
@@ -70,8 +71,8 @@ final_origins = [o for o in allowed_origins if o is not None]
 CORS(
     app, 
     # resourcesを使う形式を維持し、originsにリストを渡す
-    # resources={r"/api/*": {"origins": final_origins}}, #本番環境
-    resources={r"/api/*": {"origins": "*"}}, #開発環境
+    resources={r"/api/*": {"origins": final_origins}}, #本番環境
+    #resources={r"/api/*": {"origins": "*"}}, #開発環境
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 )
