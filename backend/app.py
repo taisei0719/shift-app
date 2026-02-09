@@ -74,8 +74,8 @@ final_origins = [o for o in allowed_origins if o is not None]
 CORS(
     app, 
     # resourcesを使う形式を維持し、originsにリストを渡す
-    #resources={r"/api/*": {"origins": final_origins}}, #本番環境
-    resources={r"/api/*": {"origins": "*"}}, #開発環境
+    resources={r"/api/*": {"origins": final_origins}}, #本番環境
+    #resources={r"/api/*": {"origins": "*"}}, #開発環境
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 )
@@ -178,7 +178,6 @@ def init_db():
             staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
             staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
             db.session.add_all([staff1, staff2, staff3])
-            
             
         db.session.commit()
 
