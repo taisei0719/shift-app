@@ -182,7 +182,16 @@ def init_db():
             
         db.session.commit()
 
-# -------------------- API: ユーザー登録 (JWT 発行対応) --------------------
+# --------------------　手動初期化用URL　--------------------        
+@app.route('/init-db')
+def manual_init_db():
+    try:
+        init_db()
+        return "DB初期化成功", 200
+    except Exception as e:
+        return f"エラー : {str(e)}", 500
+
+# -------------------- API: ユーザー登録 --------------------
 @app.route("/api/register", methods=["POST"])
 def register():
     data = request.json
