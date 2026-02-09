@@ -3,7 +3,7 @@
 
 import os
 from flask import Flask, request, jsonify, session
-from models import db, User, Shop, Shift
+from models import db, User, Shop, Shift, AutoAdjustConfig
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -11,8 +11,11 @@ from datetime import datetime, timedelta, date
 import random, string
 from dotenv import load_dotenv
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 import time
+import math
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
+from flask_jwt_extended import create_refresh_token, set_refresh_cookies
 
 load_dotenv()
 
@@ -20,7 +23,7 @@ app = Flask(__name__)
 
 # JWTの設定
 app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY", "super-secret-jwt-key") # 秘密鍵を設定
-app.config["JWT_TOKEN_LOCATION"] = ["cookies"] 
+app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"] 
 app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
 app.config["JWT_COOKIE_SECURE"] = True # HTTPSでのみクッキーを送信 (本番環境向けではTrue、開発中はFalse)
 app.config["JWT_COOKIE_SAMESITE"] = "None" # CSRF対策のためLaxまたはStrict
@@ -71,8 +74,8 @@ final_origins = [o for o in allowed_origins if o is not None]
 CORS(
     app, 
     # resourcesを使う形式を維持し、originsにリストを渡す
-    resources={r"/api/*": {"origins": final_origins}}, #本番環境
-    #resources={r"/api/*": {"origins": "*"}}, #開発環境
+    #resources={r"/api/*": {"origins": final_origins}}, #本番環境
+    resources={r"/api/*": {"origins": "*"}}, #開発環境
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 )
@@ -158,14 +161,25 @@ def wait_for_db():
 def init_db():
     with app.app_context():
         db.create_all()
-        if not User.query.filter_by(name='admin').first():
-            admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'))
+        
+        # teststore1の追加
+        shop = Shop.query.filter_by(name='teststore1').first()
+        if not shop:
+            shop = Shop(name='teststore1', location=None, shop_code=Shop.generate_unique_code())
+            db.session.add(shop)
+            db.session.flush()
+            
+        # 初期ユーザーの追加
+        if not User.query.filter_by(name='admin').first(): 
+            admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'), shop_id=shop.id)
             db.session.add(admin)
         if not User.query.filter_by(name='yamada').first():
-            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'))
-            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'))
-            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'))
+            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
+            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
+            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
             db.session.add_all([staff1, staff2, staff3])
+            
+            
         db.session.commit()
 
 # -------------------- API: ユーザー登録 (JWT 発行対応) --------------------
@@ -175,9 +189,12 @@ def register():
     name = data.get("name")
     email = data.get("email")
     password = data.get("password")
-    # 登録時には role は 'staff' などのデフォルト値が設定されることを想定
-    role = data.get("role", "staff") 
+    role = data.get("role", "staff") # 登録時には role は 'staff' などのデフォルト値が設定されることを想定
 
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
+    if not name or not email or not password:
+        return jsonify({"error": "名前・メール・パスワードは必須やで！"}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
 
@@ -1070,6 +1087,193 @@ def get_shop_users(shop_id):
         "shop": shop_info,
         "users": user_list
     }), 200
+    
+def _parse_hour_float(t):
+    # t: datetime.time -> float hour (e.g. 9:30 -> 9.5)
+    return t.hour + t.minute / 60.0
+
+def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
+    """
+    request_shifts: list of Shift objects (shift_type=='request') for the shop and date
+    priorities_map: {user_id_str: priority_int}
+    capacities_map: {"0":int, ... "23":int}
+    戻り値: assignments: list of dict {user_id, start_time_str, end_time_str}
+            metrics: { user_id: {accepted, total, rate}, overall: {...} }
+    シンプルな貪欲アルゴリズムで優先度高い順に割当する。
+    """
+    # deep copy capacities (int)
+    caps = {int(k): int(v) for k, v in (capacities_map or {}).items()}
+    for h in range(24):
+        caps.setdefault(h, 9999)  # 未設定なら十分に大きく
+
+    # build requests list: each entry {user_id, start_f, end_f, duration, shift_obj}
+    reqs = []
+    for s in request_shifts:
+        sf = _parse_hour_float(s.start_time)
+        ef = _parse_hour_float(s.end_time)
+        duration = max(0.25, ef - sf)
+        priority = int(priorities_map.get(str(s.user_id), 0))
+        reqs.append({
+            "user_id": s.user_id,
+            "start_f": sf,
+            "end_f": ef,
+            "duration": duration,
+            "priority": priority,
+            "shift": s
+        })
+        
+        # sort by priority desc, shorter duration first (tie-breaker)
+    reqs.sort(key=lambda r: (-r['priority'], r['duration']))
+
+    assignments = []
+    accepted_count = {}
+    total_count = {}
+    for r in reqs:
+        uid = r['user_id']
+        total_count[uid] = total_count.get(uid, 0) + 1
+        # map to integer hour slots covering the shift (floor start .. ceil end-1)
+        start_hour = int(r['start_f']//1)
+        end_hour = int((r['end_f'] - 1e-9)//1)  # inclusive last hour index if end > integer
+        # Build list of hours to check conservatively: from floor(start) to ceil(end)-1
+        hours = list(range(int(r['start_f']), int(math.ceil(r['end_f']))))
+        # check capacity for every hour
+        can_assign = True
+        for h in hours:
+            if caps.get(h, 0) <= 0:
+                can_assign = False
+                break
+        if can_assign:
+            # decrement caps
+            for h in hours:
+                caps[h] = caps.get(h, 0) - 1
+            assignments.append({
+                "user_id": uid,
+                "start_time": r['shift'].start_time.strftime('%H:%M'),
+                "end_time": r['shift'].end_time.strftime('%H:%M')
+            })
+            accepted_count[uid] = accepted_count.get(uid, 0) + 1
+        # else skip (希望は通らない)
+
+    # metrics
+    metrics = {"users": {}, "overall": {}}
+    total_requests = sum(total_count.values())
+    total_accepted = sum(accepted_count.values())
+    for uid, tot in total_count.items():
+        acc = accepted_count.get(uid, 0)
+        metrics['users'][uid] = {"accepted": acc, "total": tot, "rate": acc / tot if tot > 0 else 0.0}
+    metrics['overall'] = {"accepted": total_accepted, "total": total_requests, "rate": total_accepted / total_requests if total_requests > 0 else 0.0}
+
+    return assignments, metrics
+
+@app.route("/api/shop/<int:shop_id>/auto_adjust/config", methods=["GET", "POST"])
+@jwt_required()
+def shop_auto_adjust_config(shop_id):
+    # JWTからユーザー取得
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+    # 権限と店舗一致チェック（管理者のみ）
+    if user.role != 'admin' or user.shop_id != shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+
+    if request.method == 'GET':
+        cfg = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
+        if not cfg:
+            return jsonify({"config": {"priorities": {}, "capacities": {}}}), 200
+        return jsonify({"config": {"priorities": cfg.priorities or {}, "capacities": cfg.capacities or {}, "options": cfg.options or {}}}), 200
+
+    # POST: 保存
+    data = request.json or {}
+    priorities = data.get("priorities", {})
+    capacities = data.get("capacities", {})
+    options = data.get("options", {})
+    
+    try:
+        cfg = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
+        if not cfg:
+            cfg = AutoAdjustConfig(shop_id=shop_id, priorities=priorities, capacities=capacities, options=options)
+            db.session.add(cfg)
+        else:
+            cfg.priorities = priorities
+            cfg.capacities = capacities
+            cfg.options = options
+        db.session.commit()
+        return jsonify({"message": "設定を保存したで"}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"error": f"保存に失敗したで: {str(e)}"}), 500
+    
+@app.route("/api/admin/shifts/auto_adjust/<date_str>", methods=["POST"])
+@jwt_required()
+def admin_auto_adjust(date_str):
+    """
+    POST body: { "apply": true/false }
+    - apply=false: シミュレーション結果を返すだけ
+    - apply=true: DBに確定として保存（既存の該当ユーザー分のシフトは上書き）
+    """
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+    if user.role != 'admin' or not user.shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
+
+    apply_flag = bool(request.json.get('apply', False)) if request.json else False
+
+    # 取得: その日の全ての request シフト
+    request_shifts = Shift.query.filter(
+        Shift.shop_id == user.shop_id,
+        Shift.shift_date == target_date,
+        Shift.shift_type == 'request'
+    ).all()
+    
+    # 設定を取得
+    cfg = AutoAdjustConfig.query.filter_by(shop_id=user.shop_id).first()
+    priorities = cfg.priorities if cfg else {}
+    capacities = cfg.capacities if cfg else {}
+
+    assignments, metrics = compute_auto_assignments(request_shifts, priorities, capacities)
+
+    if apply_flag:
+        # DB更新: 指定ユーザーに対する既存シフトを削除して確定を追加する
+        try:
+            # 削除対象ユーザーID一覧
+            user_ids = list({a['user_id'] for a in assignments})
+            if user_ids:
+                # delete existing confirmed/request for these users on that date (overwrite)
+                Shift.query.filter(
+                    Shift.shop_id == user.shop_id,
+                    Shift.shift_date == target_date,
+                    Shift.user_id.in_(user_ids)
+                ).delete(synchronize_session='fetch')
+            # insert new confirmed
+            for a in assignments:
+                st = datetime.strptime(a['start_time'], '%H:%M').time()
+                et = datetime.strptime(a['end_time'], '%H:%M').time()
+                new_shift = Shift(
+                    user_id=a['user_id'],
+                    shop_id=user.shop_id,
+                    shift_date=target_date,
+                    start_time=st,
+                    end_time=et,
+                    shift_type='confirmed'
+                )
+                db.session.add(new_shift)
+            db.session.commit()
+            return jsonify({"message": "自動確定を適用したで", "assignments": assignments, "metrics": metrics}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"適用に失敗したで: {str(e)}"}), 500
+
+    return jsonify({"assignments": assignments, "metrics": metrics}), 200
 
 # -------------------- API: セッション取得 (JWT対応版) --------------------
 @app.route("/api/session")
