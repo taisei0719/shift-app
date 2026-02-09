@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash # パスワードハッシュ化関数も移動
 import secrets 
 import random, string
+from sqlalchemy.dialects.postgresql import JSON
 
 # dbオブジェクトはここで初期化 (app.pyからappオブジェクトを受け取って設定するのが一般的だが、ここでは一旦dbだけ切り出す)
 # 注意: dbオブジェクトの初期化はapp.pyで実行する必要があるため、models.pyでは定義のみ
@@ -79,3 +80,15 @@ class Shop(db.Model):
             code = ''.join(random.choices(string.digits, k=6)) # 6桁で十分
             if not Shop.query.filter_by(shop_code=code).first():
                 return code
+            
+            
+class AutoAdjustConfig(db.Model):
+    __tablename__ = 'auto_adjust_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), unique=True, nullable=False)
+    priorities = db.Column(JSON, nullable=False, default={})# priorities: { "<user_id>": <priority_int>, ... }
+    capacities = db.Column(JSON, nullable=False, default={})# capacities: { "0": <int>, "1": <int>, ..., "23": <int> } 各時間帯の定員
+    # その他パラメータ（将来拡張）
+    options = db.Column(JSON, nullable=True)
+
+    shop = db.relationship('Shop', backref=db.backref('auto_adjust_config', uselist=False))
