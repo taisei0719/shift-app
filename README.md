@@ -27,11 +27,8 @@
 - **Web Server**: Gunicorn
 
 ### モバイル
-- **Framework**: Flask (Python)
-- **Database**: SQLite (開発時)
-- **Database**: PostgleSQL (実運用時)
-- **Auth**: Flask-JWT-Extended
-- **Web Server**
+- **Framework**: Flutter
+- **Language**: Dart
 
 ### インフラ・運用
 - **Container**: Docker / Docker Compose
@@ -46,3 +43,4 @@
 2. プロジェクトのルートディレクトリで以下のコマンドを実行します。
    ```bash
    docker compose up -d --build
+
