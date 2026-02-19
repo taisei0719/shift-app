@@ -2,6 +2,14 @@
 
 このアプリケーションは、店舗のシフト希望の提出から、時間帯別の必要人数に基づいたシフトの自動調整、および管理までを一気通貫で行うフルスタックWebアプリケーションです。
 
+### テストユーザー
+| username | role | pass |
+| :--- | :--- | :--- |
+| admin | admin | pass |
+| yamada | staff | pass |
+| sato | staff | pass |
+| suzuki | staff | pass |
+
 ## 主な機能
 
 - **ユーザー認証**: JWT（JSON Web Token）を使用したセキュアなログイン管理。
@@ -43,4 +51,5 @@
 2. プロジェクトのルートディレクトリで以下のコマンドを実行します。
    ```bash
    docker compose up -d --build
+
 
