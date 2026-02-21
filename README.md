@@ -13,9 +13,9 @@
 ## 主な機能
 
 - **ユーザー認証**: JWT（JSON Web Token）を使用したセキュアなログイン管理。
-- **店舗管理**: 店舗コードによるスタッフの紐付け、開店・閉店時間の設定。
+- **店舗管理**: 店舗コードによるスタッフの紐付け。
 - **シフト提出**: カレンダーUIからの直感的なシフト希望提出機能。
-- **自動調整エンジン**: 時間帯別の定員設定（AutoAdjustConfig）に基づいたシフト割り当て。
+- **シフト自動調整(未実装)**: 時間帯別の定員設定（AutoAdjustConfig）に基づいたシフト割り当て。
 - **管理者ダッシュボード**: 店舗全体の設定、確定シフトの公開管理。
 
 ## 技術スタック
@@ -39,6 +39,9 @@
 - **Language**: Dart
 
 ### インフラ・運用
+- **Frontend Hosting**: Vercel
+- **Backend Hosting**: Render
+- **Database Hosting**: Render (PostgreSQL)
 - **Container**: Docker / Docker Compose
 
 ## セットアップ・実行方法
@@ -51,6 +54,7 @@
 2. プロジェクトのルートディレクトリで以下のコマンドを実行します。
    ```bash
    docker compose up -d --build
+
 
 
 
