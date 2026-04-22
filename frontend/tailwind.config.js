@@ -1,6 +1,6 @@
 // frontend/tailwind.config.js
 
-dummy: true,
+// dummy: true,
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {

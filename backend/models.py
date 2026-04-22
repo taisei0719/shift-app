@@ -61,9 +61,9 @@ class Shift(db.Model):
         }
 
     # 複合インデックス: 同じユーザー、同じ日付に複数の確定済みシフトは持てないようにする
-    __table_args__ = (
-        db.UniqueConstraint('user_id', 'shift_date', name='_user_shift_date_uc'),
-    )
+    # __table_args__ = (
+    #     db.UniqueConstraint('user_id', 'shift_date', name='_user_shift_date_uc'),
+    # )
 
 
 class Shop(db.Model):
