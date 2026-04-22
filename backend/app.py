@@ -72,10 +72,9 @@ allowed_origins = [
 final_origins = [o for o in allowed_origins if o is not None]
 
 CORS(
-    app, 
+    app,
     # resourcesを使う形式を維持し、originsにリストを渡す
-    # resources={r"/api/*": {"origins": final_origins}}, #本番環境
-    resources={r"/api/*": {"origins": "*"}}, #開発環境
+    resources={r"/api/*": {"origins": final_origins}},
     supports_credentials=True, 
     allow_headers=["Content-Type", "Authorization"] 
 )
