@@ -3,7 +3,7 @@
 
 import os
 from flask import Flask, request, jsonify, session
-from models import db, User, Shop, Shift, AutoAdjustConfig
+from models import db, User, Shop, Shift, AutoAdjustConfig, ShiftRejectionHistory
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -651,9 +651,8 @@ def get_shifts_for_admin(date_str):
 @app.route("/api/admin/shifts/confirm", methods=["POST"])
 @jwt_required()
 def confirm_shifts():
-    # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
-    user_id = int(user_id_str) # トークンから取得
+    user_id = int(user_id_str)
     
     user = db.session.get(User, user_id)
     if not user:
@@ -662,12 +661,11 @@ def confirm_shifts():
     role = user.role
     shop_id = user.shop_id
     
-    # 1. ログイン/権限/所属店舗チェック
     if role != 'admin':
         return jsonify({"error": "管理者権限が必要です"}), 403
     if not shop_id:
         return jsonify({"error": "管理店舗が登録されていません"}), 400
-
+ 
     data = request.json
     confirmed_shifts_data = data.get("confirmed_shifts", [])
     
@@ -675,38 +673,39 @@ def confirm_shifts():
         return jsonify({"error": "確定シフトデータがありません"}), 400
         
     try:
-        # データから日付を取得（全て同じ日付のはず）
         date_str = confirmed_shifts_data[0]['shift_date']
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
         target_user_ids = [shift['user_id'] for shift in confirmed_shifts_data]
-        
-        # 2. 既存の確定・希望シフトを全て削除 (上書きするため)
-        # 削除対象のシフトを読み込む (confirmed だけでなく request も含め、全てを一度クリアする)
+ 
+        # ★ 削除前にリクエストを提出していたユーザーIDを全て取得
+        # (削除後はリクエストがなくなるため、ここで記録しておく)
+        all_requesting_user_ids = {
+            s.user_id for s in Shift.query.filter(
+                Shift.shop_id == shop_id,
+                Shift.shift_date == target_date,
+                Shift.shift_type == 'request',
+                Shift.user_id.in_(target_user_ids)
+            ).all()
+        }
+ 
+        # 既存シフトを削除
         shifts_to_delete = Shift.query.filter(
             Shift.shop_id == shop_id,
             Shift.shift_date == target_date,
-            # 'request' も 'confirmed' も、今回確定処理を行うユーザーの分だけを対象にする
             Shift.user_id.in_(target_user_ids) 
         ).all()
-        
-        # 読み込んだオブジェクトを一つずつ削除
         for shift in shifts_to_delete:
             db.session.delete(shift)
-        
-        # ここで削除をDBに確定させる（これがないと新規追加と競合する可能性あり）
         db.session.commit()
-
+ 
+        # 新しい確定シフトを追加
         new_confirmed_shifts = []
-        
-        # 3. 新しい確定シフトをDBに追加
+        accepted_user_ids = set()
+ 
         for shift_data in confirmed_shifts_data:
-            user_id_to_add = shift_data.get('user_id')
-            
-            # 入力チェック (user_id, start_time, end_time が必須)
             if 'user_id' not in shift_data or 'start_time' not in shift_data or 'end_time' not in shift_data:
-                 continue # 不正なデータはスキップ
-              
+                continue
+             
             start_time_obj = datetime.strptime(shift_data['start_time'], '%H:%M').time()
             end_time_obj = datetime.strptime(shift_data['end_time'], '%H:%M').time()
             
@@ -716,17 +715,25 @@ def confirm_shifts():
                 shift_date=target_date,
                 start_time=start_time_obj,
                 end_time=end_time_obj,
-                shift_type='confirmed' # 確定済みとして登録
+                shift_type='confirmed'
             )
             db.session.add(new_shift)
             new_confirmed_shifts.append(new_shift)
-
+            accepted_user_ids.add(shift_data['user_id'])
+ 
+        # ★ 棄却履歴の更新
+        # リクエストを提出していた全ユーザーに対してカウントを更新
+        for uid in all_requesting_user_ids:
+            history = _get_or_create_history(uid, shop_id)
+            history.total_requests += 1
+            if uid in accepted_user_ids:
+                history.total_accepted += 1
+ 
         db.session.commit()
         return jsonify({"message": f"日付 {date_str} のシフトを{len(new_confirmed_shifts)}件確定しました。"}), 200
-
+ 
     except Exception as e:
         db.session.rollback()
-        # db.session.remove() # ここはFlask-SQLAlchemyのデフォルト設定で不要な場合が多いが、念のため残す
         print(f"シフト確定エラー: {e}")
         return jsonify({"error": f"シフト確定処理中にエラーが発生しました: {str(e)}"}), 500
     
@@ -1163,78 +1170,182 @@ def _parse_hour_float(t):
     # t: datetime.time -> float hour (e.g. 9:30 -> 9.5)
     return t.hour + t.minute / 60.0
 
+def _get_current_year_month():
+    """現在の年月を 'YYYY-MM' 形式で返す"""
+    return datetime.now().strftime('%Y-%m')
+ 
+ 
+def _get_or_create_history(user_id: int, shop_id: int) -> ShiftRejectionHistory:
+    """
+    (user_id, shop_id) に対応する履歴レコードを取得または新規作成する。
+    reset_mode='monthly' の場合、月が変わっていれば自動リセットする。
+    """
+    history = ShiftRejectionHistory.query.filter_by(
+        user_id=user_id,
+        shop_id=shop_id
+    ).first()
+ 
+    if not history:
+        # 初回: 新規作成
+        history = ShiftRejectionHistory(
+            user_id=user_id,
+            shop_id=shop_id,
+            total_requests=0,
+            total_accepted=0,
+            reset_mode='manual',
+            last_reset_year_month=_get_current_year_month()
+        )
+        db.session.add(history)
+        return history
+ 
+    # 月次リセットチェック
+    if history.reset_mode == 'monthly':
+        current_ym = _get_current_year_month()
+        if history.last_reset_year_month != current_ym:
+            # 月が変わっていたらリセット
+            history.total_requests = 0
+            history.total_accepted = 0
+            history.last_reset_year_month = current_ym
+ 
+    return history
+ 
+ 
+def update_rejection_histories(shop_id: int, date, request_shifts, accepted_user_ids: set):
+    """
+    シフト確定時に棄却履歴を更新する。
+ 
+    Args:
+        shop_id: 対象店舗ID
+        date: 対象日付
+        request_shifts: その日の全リクエストシフトのリスト
+        accepted_user_ids: 採用されたユーザーIDのset
+    """
+    # その日に希望を提出したユーザーIDを収集
+    requesting_user_ids = {s.user_id for s in request_shifts}
+ 
+    for user_id in requesting_user_ids:
+        history = _get_or_create_history(user_id, shop_id)
+        history.total_requests += 1
+        if user_id in accepted_user_ids:
+            history.total_accepted += 1
+        # updated_at は onupdate で自動更新される
+
 # -------------------- 自動調整ロジック本体 --------------------
-def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
+def compute_auto_assignments(request_shifts, priorities_map, capacities_map, shop_id=None):
     """
-    request_shifts: list of Shift objects (shift_type=='request') for the shop and date
-    priorities_map: {user_id_str: priority_int}
-    capacities_map: {"0":int, ... "23":int}
-    戻り値: assignments: list of dict {user_id, start_time_str, end_time_str}
-            metrics: { user_id: {accepted, total, rate}, overall: {...} }
-    シンプルな貪欲アルゴリズムで優先度高い順に割当する。
+    シフト自動調整ロジック。
+    優先度が同じグループ内では「累積棄却率が高い人」を優先することで
+    長期的な棄却の偏りを防ぐ。
+ 
+    Args:
+        request_shifts: Shiftオブジェクトのリスト (shift_type=='request')
+        priorities_map: {str(user_id): priority_int}
+        capacities_map: {"0": int, ..., "23": int} 各時間帯の定員
+        shop_id: 棄却履歴を参照するための店舗ID (Noneの場合は履歴を使わない)
+ 
+    Returns:
+        assignments: [{"user_id": int, "start_time": str, "end_time": str}, ...]
+        metrics: {
+            "users": {user_id: {"accepted": int, "total": int, "rate": float}},
+            "overall": {"accepted": int, "total": int, "rate": float}
+        }
     """
-    # deep copy capacities (int)
+    # --- 定員マップの準備 ---
     caps = {int(k): int(v) for k, v in (capacities_map or {}).items()}
     for h in range(24):
-        caps.setdefault(h, 9999)  # 未設定なら十分に大きく
-
-    # build requests list: each entry {user_id, start_f, end_f, duration, shift_obj}
+        caps.setdefault(h, 9999)  # 未設定時間帯は上限なし
+ 
+    # --- 棄却履歴の取得 ---
+    # shop_idがある場合のみDBから引く（シミュレーション時も参照する）
+    rejection_rate_map = {}  # {user_id: float}
+    if shop_id is not None:
+        histories = ShiftRejectionHistory.query.filter_by(shop_id=shop_id).all()
+        for h in histories:
+            # 月次リセットが必要な場合は率を0扱いにする
+            if h.reset_mode == 'monthly':
+                current_ym = _get_current_year_month()
+                if h.last_reset_year_month != current_ym:
+                    rejection_rate_map[h.user_id] = 0.0
+                    continue
+            rejection_rate_map[h.user_id] = h.rejection_rate
+ 
+    # --- リクエストリストの構築 ---
     reqs = []
     for s in request_shifts:
         sf = _parse_hour_float(s.start_time)
         ef = _parse_hour_float(s.end_time)
         duration = max(0.25, ef - sf)
         priority = int(priorities_map.get(str(s.user_id), 0))
+        rejection_rate = rejection_rate_map.get(s.user_id, 0.0)
+ 
         reqs.append({
             "user_id": s.user_id,
             "start_f": sf,
             "end_f": ef,
+            "duration": duration,
             "priority": priority,
+            "rejection_rate": rejection_rate,  # 棄却率 (高いほど優先)
+            "rand": random.random(),            # 同率時のタイブレーク
             "shift": s,
-            "rand": random.random() # 同一優先度内でのランダム性
         })
-        
-        # ソート順: priorityが高い順(降順)、同じならランダム
-    reqs.sort(key=lambda r: (-r['priority'], r['rand']))
-
+ 
+    # --- ソート ---
+    # 1. 優先度 高い順
+    # 2. 同優先度内: 累積棄却率 高い順（過去に多く棄却された人を優先）
+    # 3. 同棄却率: ランダム（毎回同じ人が有利にならないように）
+    reqs.sort(key=lambda r: (
+        -r['priority'],
+        -r['rejection_rate'],
+        r['rand']
+    ))
+ 
+    # --- 貪欲法による割当 ---
     assignments = []
-    accepted_count = {}
-    total_count = {}
+    accepted_count = {}  # {user_id: int}
+    total_count = {}     # {user_id: int}
+ 
     for r in reqs:
         uid = r['user_id']
         total_count[uid] = total_count.get(uid, 0) + 1
-        # map to integer hour slots covering the shift (floor start .. ceil end-1)
-        start_hour = int(r['start_f']//1)
-        end_hour = int((r['end_f'] - 1e-9)//1)  # inclusive last hour index if end > integer
-        hours = list(range(int(r['start_f']), int(math.ceil(r['end_f'])))) # Build list of hours to check conservatively: from floor(start) to ceil(end)-1
-        
-        # check capacity for every hour
-        can_assign = True
-        for h in hours:
-            if caps.get(h, 0) <= 0:
-                can_assign = False
-                break
+ 
+        # シフトがカバーする時間帯スロット (開始時刻の整数部〜終了時刻の切り上げ-1)
+        hours = list(range(int(r['start_f']), math.ceil(r['end_f'])))
+ 
+        # 全時間帯で定員に空きがあるか確認
+        can_assign = all(caps.get(h, 0) > 0 for h in hours)
+ 
         if can_assign:
-            # decrement caps
+            # 定員を消費
             for h in hours:
                 caps[h] = caps.get(h, 0) - 1
             assignments.append({
                 "user_id": uid,
                 "start_time": r['shift'].start_time.strftime('%H:%M'),
-                "end_time": r['shift'].end_time.strftime('%H:%M')
+                "end_time": r['shift'].end_time.strftime('%H:%M'),
             })
             accepted_count[uid] = accepted_count.get(uid, 0) + 1
-        # else skip (希望は通らない)
-
-    # metrics
-    metrics = {"users": {}, "overall": {}}
-    total_requests = sum(total_count.values())
-    total_accepted = sum(accepted_count.values())
-    for uid, tot in total_count.items():
-        acc = accepted_count.get(uid, 0)
-        metrics['users'][uid] = {"accepted": acc, "total": tot, "rate": acc / tot if tot > 0 else 0.0}
-    metrics['overall'] = {"accepted": total_accepted, "total": total_requests, "rate": total_accepted / total_requests if total_requests > 0 else 0.0}
-
+ 
+    # --- メトリクス計算 ---
+    total_requests_all = sum(total_count.values())
+    total_accepted_all = sum(accepted_count.values())
+ 
+    metrics = {
+        "users": {
+            str(uid): {
+                "accepted": accepted_count.get(uid, 0),
+                "total": tot,
+                "rate": accepted_count.get(uid, 0) / tot if tot > 0 else 0.0,
+                "rejection_rate_before": round(rejection_rate_map.get(uid, 0.0), 4),
+            }
+            for uid, tot in total_count.items()
+        },
+        "overall": {
+            "accepted": total_accepted_all,
+            "total": total_requests_all,
+            "rate": total_accepted_all / total_requests_all if total_requests_all > 0 else 0.0,
+        }
+    }
+ 
     return assignments, metrics
 
 # -------------------- API: 自動調整の設定取得/保存 (Admin専用) --------------------
@@ -1348,6 +1459,108 @@ def admin_auto_adjust(date_str):
             return jsonify({"error": f"適用に失敗しました: {str(e)}"}), 500
 
     return jsonify({"assignments": assignments, "metrics": metrics}), 200
+
+# -------------------- API: 棄却履歴一覧取得 (Admin専用) --------------------
+@app.route("/api/shop/<int:shop_id>/rejection_history", methods=["GET"])
+@jwt_required()
+def get_rejection_history(shop_id):
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+ 
+    if not user or user.role != 'admin' or user.shop_id != shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+ 
+    histories = ShiftRejectionHistory.query.filter_by(shop_id=shop_id).all()
+    return jsonify({"histories": [h.to_dict() for h in histories]}), 200
+ 
+ 
+# -------------------- API: 棄却履歴リセット (Admin専用) --------------------
+# reset_type: 'all' (全員リセット) / 'user' (特定ユーザーのみ)
+@app.route("/api/shop/<int:shop_id>/rejection_history/reset", methods=["POST"])
+@jwt_required()
+def reset_rejection_history(shop_id):
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+ 
+    if not user or user.role != 'admin' or user.shop_id != shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+ 
+    data = request.json or {}
+    reset_type = data.get("reset_type", "all")   # 'all' or 'user'
+    target_user_id = data.get("user_id")          # reset_type='user' の場合に必要
+    current_ym = _get_current_year_month()
+ 
+    try:
+        if reset_type == "all":
+            # 店舗の全スタッフをリセット
+            histories = ShiftRejectionHistory.query.filter_by(shop_id=shop_id).all()
+            for h in histories:
+                h.total_requests = 0
+                h.total_accepted = 0
+                h.last_reset_year_month = current_ym
+            db.session.commit()
+            return jsonify({"message": f"{len(histories)}件の履歴をリセットしました。"}), 200
+ 
+        elif reset_type == "user":
+            if not target_user_id:
+                return jsonify({"error": "user_idが必要です"}), 400
+            history = ShiftRejectionHistory.query.filter_by(
+                shop_id=shop_id, user_id=target_user_id
+            ).first()
+            if not history:
+                return jsonify({"error": "履歴が見つかりません"}), 404
+            history.total_requests = 0
+            history.total_accepted = 0
+            history.last_reset_year_month = current_ym
+            db.session.commit()
+            return jsonify({"message": "履歴をリセットしました。"}), 200
+ 
+        else:
+            return jsonify({"error": "reset_typeは 'all' または 'user' を指定してください"}), 400
+ 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"リセット中にエラーが発生しました: {str(e)}"}), 500
+ 
+ 
+# -------------------- API: リセットモード変更 (Admin専用) --------------------
+# reset_mode: 'manual' or 'monthly'
+@app.route("/api/shop/<int:shop_id>/rejection_history/reset_mode", methods=["POST"])
+@jwt_required()
+def update_reset_mode(shop_id):
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+ 
+    if not user or user.role != 'admin' or user.shop_id != shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+ 
+    data = request.json or {}
+    new_mode = data.get("reset_mode")
+    target_user_id = data.get("user_id")  # Noneなら全員まとめて変更
+ 
+    if new_mode not in ('manual', 'monthly'):
+        return jsonify({"error": "reset_modeは 'manual' または 'monthly' を指定してください"}), 400
+ 
+    try:
+        query = ShiftRejectionHistory.query.filter_by(shop_id=shop_id)
+        if target_user_id:
+            query = query.filter_by(user_id=target_user_id)
+        
+        histories = query.all()
+        for h in histories:
+            h.reset_mode = new_mode
+        
+        db.session.commit()
+        return jsonify({
+            "message": f"{len(histories)}件のリセットモードを '{new_mode}' に変更しました。"
+        }), 200
+ 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"更新中にエラーが発生しました: {str(e)}"}), 500
 
 # -------------------- API: セッション取得 (JWT対応版) --------------------
 @app.route("/api/session")
