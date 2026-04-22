@@ -175,16 +175,51 @@ def init_db():
             db.session.flush()
             
         # 初期ユーザーの追加
-        if not User.query.filter_by(name='admin').first(): 
+        if not User.query.filter_by(name='admin').first():
             admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'), shop_id=shop.id)
             db.session.add(admin)
+
+        # 10人のスタッフを追加
         if not User.query.filter_by(name='yamada').first():
-            staff1 = User(name='yamada', email='yamada@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
-            staff2 = User(name='sato', email='sato@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
-            staff3 = User(name='suzuki', email='suzuki@example.com', role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
-            db.session.add_all([staff1, staff2, staff3])
-            
+            staff_names = ['yamada', 'sato', 'suzuki', 'taro', 'hanako', 'jiro', 'sakura', 'akira', 'yuki', 'hana']
+            staff_list = []
+            for name in staff_names:
+                email = f'{name}@example.com'
+                if not User.query.filter_by(name=name).first():
+                    staff = User(name=name, email=email, role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
+                    staff_list.append(staff)
+            db.session.add_all(staff_list)
+
         db.session.commit()
+
+        # デモ用シフト希望の追加（まだシフトが登録されていない場合）
+        if Shift.query.filter_by(shop_id=shop.id).count() == 0:
+            staff = User.query.filter_by(shop_id=shop.id, role='staff').all()
+            today = date.today()
+
+            # 30日間分のシフト希望を作成
+            for shift_days in range(30):
+                current_date = today + timedelta(days=shift_days)
+
+                # 各スタッフに対して、50%の確率でシフト希望を作成
+                for s in staff:
+                    if random.random() < 0.5:  # 50%の確率
+                        # ランダムなシフト時間を生成（4-8時間）
+                        start_hour = random.randint(9, 18)  # 9時～18時の間でスタート
+                        duration = random.randint(4, 8)  # 4～8時間の勤務
+                        end_hour = min(start_hour + duration, 22)  # 営業終了時刻（22:00）を超えないように調整
+
+                        shift = Shift(
+                            user_id=s.id,
+                            shop_id=shop.id,
+                            shift_date=current_date,
+                            start_time=time(start_hour, 0),
+                            end_time=time(end_hour, 0),
+                            shift_type='request'
+                        )
+                        db.session.add(shift)
+
+            db.session.commit()
 
 # --------------------　手動初期化用URL　--------------------        
 @app.route('/init-db')
