@@ -1030,7 +1030,7 @@ def get_shop_detail(shop_id):
     
     # 設定テーブルからデータを取る
     config = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
-        
+
     # 4. JSONで返す (ロジックは変更なし)
     return jsonify({
         "name": shop.name,
@@ -1038,8 +1038,8 @@ def get_shop_detail(shop_id):
         "shop_code": shop.shop_code,
         "shop_id": shop.id,
         "config": {
-            "max_staff": config.max_staff if config else 5,
-            "min_staff": config.min_staff if config else 1
+            "max_staff": 5,  # デフォルト値
+            "min_staff": 1   # デフォルト値
         }
     })
 
