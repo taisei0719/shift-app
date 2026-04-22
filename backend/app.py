@@ -180,14 +180,14 @@ def init_db():
             db.session.add(admin)
 
         # 10人のスタッフを追加
-        if not User.query.filter_by(name='yamada').first():
-            staff_names = ['yamada', 'sato', 'suzuki', 'taro', 'hanako', 'jiro', 'sakura', 'akira', 'yuki', 'hana']
-            staff_list = []
-            for name in staff_names:
-                email = f'{name}@example.com'
-                if not User.query.filter_by(name=name).first():
-                    staff = User(name=name, email=email, role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
-                    staff_list.append(staff)
+        staff_names = ['yamada', 'sato', 'suzuki', 'taro', 'hanako', 'jiro', 'sakura', 'akira', 'yuki', 'hana']
+        staff_list = []
+        for name in staff_names:
+            email = f'{name}@example.com'
+            if not User.query.filter_by(name=name).first():
+                staff = User(name=name, email=email, role='staff', password=generate_password_hash('pass'), shop_id=shop.id)
+                staff_list.append(staff)
+        if staff_list:
             db.session.add_all(staff_list)
 
         db.session.commit()
