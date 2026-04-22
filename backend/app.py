@@ -175,9 +175,13 @@ def init_db():
             db.session.flush()
             
         # 初期ユーザーの追加
-        if not User.query.filter_by(name='admin').first():
+        admin = User.query.filter_by(name='admin').first()
+        if not admin:
             admin = User(name='admin', email='admin@example.com', role='admin', password=generate_password_hash('pass'), shop_id=shop.id)
             db.session.add(admin)
+        elif not admin.shop_id:
+            # 既存のadminが shop_id を持たない場合は設定
+            admin.shop_id = shop.id
 
         # 10人のスタッフを追加
         staff_names = ['yamada', 'sato', 'suzuki', 'taro', 'hanako', 'jiro', 'sakura', 'akira', 'yuki', 'hana']
