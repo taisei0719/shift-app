@@ -201,9 +201,9 @@ def init_db():
             for shift_days in range(30):
                 current_date = today + timedelta(days=shift_days)
 
-                # 各スタッフに対して、50%の確率でシフト希望を作成
+                # 各スタッフに対して、85%の確率でシフト希望を作成（自動調整で棄却されるようにするため）
                 for s in staff:
-                    if random.random() < 0.5:  # 50%の確率
+                    if random.random() < 0.85:  # 85%の確率
                         # ランダムなシフト時間を生成（4-8時間）
                         start_hour = random.randint(9, 18)  # 9時～18時の間でスタート
                         duration = random.randint(4, 8)  # 4～8時間の勤務
@@ -219,6 +219,18 @@ def init_db():
                         )
                         db.session.add(shift)
 
+            db.session.commit()
+
+        # デモ用の自動調整設定を追加（定員を制限して棄却が出るようにする）
+        config = AutoAdjustConfig.query.filter_by(shop_id=shop.id).first()
+        if not config:
+            # 時間帯ごとの定員を設定（棄却が出るように少なめに）
+            capacities = {
+                str(h): 3 if 12 <= h <= 18 else 4  # ランチタイム（12-18時）は3人、それ以外は4人
+                for h in range(24)
+            }
+            config = AutoAdjustConfig(shop_id=shop.id, priorities={}, capacities=capacities, options={})
+            db.session.add(config)
             db.session.commit()
 
 # --------------------　手動初期化用URL　--------------------        
