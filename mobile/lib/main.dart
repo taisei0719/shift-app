@@ -5,7 +5,20 @@ import 'package:go_router/go_router.dart';
 import 'repositories/auth_repository.dart'; // 作成した認証リポジトリ
 
 import 'screens/login_screen.dart'; 
+import 'screens/admin_calendar_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/staff_calendar_screen.dart';
+import 'screens/edit_account_screen.dart';
+import 'screens/register_screen.dart';
+import 'screens/shift_day_screen.dart';
+import 'screens/shift_adjast_screen.dart';
+import 'screens/staff_shop_register_screen.dart';
+import 'screens/shop_register_screen.dart';
+import 'screens/shop_screen.dart';
+import 'screens/shop_users_screen.dart';
+import 'screens/join_requests_screen.dart';
+import 'screens/auto_adjust_settings_screen.dart';
+
 
 
 // -------------------- 1. ルーターの設定 --------------------
@@ -20,33 +33,107 @@ final _routerProvider = Provider<GoRouter>((ref) {
     // 認証状態の変更を監視し、画面遷移を制御する
     redirect: (BuildContext context, GoRouterState state) {
       // 認証画面かどうか
-      final isLoggingIn = state.matchedLocation == '/login';
+      final isLoggingIn = state.matchedLocation == '/';
+      final isRegistering = state.matchedLocation == '/register';
 
       if (authState.isLoading) {
         return null; // ローディング中は何もせず待機
       }
+
+      final user = authState.hasValue ? authState.value : null;
       
       // 2. 認証状態によるリダイレクト
-      // ユーザー情報がある（ログイン済み）
-      if (authState.hasValue && authState.value != null) {
-        // ログイン画面にいたなら、メイン画面に移動
-        return isLoggingIn ? '/' : null;
-      } 
-      // ユーザー情報がない（未ログイン）
-      else {
-        // メイン画面にいようとしたなら、ログイン画面に移動
-        return isLoggingIn ? null : '/login';
+      if (user != null) {
+        // ログイン画面／登録画面にいたら役割に応じて遷移先を変える
+        if (isLoggingIn || isRegistering) {
+          return (user.role == 'admin') ? '/admin_calendar' : '/staff_calendar';
+        }
+        return null;
+      } else {
+        // 未ログインならどのページでもログイン画面へ
+        return (isLoggingIn || isRegistering) ? null : '/';
       }
     },
 
     routes: [
       GoRoute(
-        path: '/',
+        path: '/',// ログイン画面
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/home',// ホーム画面(削除予定)
         builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
+        path: '/admin_calendar',// 管理者ホーム画面(カレンダー)
+        builder: (context, state) => AdminCalendarScreen(),
+      ),
+      GoRoute(
+        path: '/edit_account',// アカウント編集画面
+        builder: (context, state) => const EditAccountScreen(),
+      ),
+      GoRoute(
+        path: '/register',// 新規登録画面
+        builder: (context, state) => RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/staff_calendar',// シフト一覧画面
+        builder: (context, state) => StaffCalendarScreen(),
+      ),
+      GoRoute(
+        path: '/shop/:shopId/shifts_day', // 日別シフト画面
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          final dateStr = state.uri.queryParameters['date']!;
+          return ShiftDayScreen(
+            shopId: shopId,
+            dateStr: dateStr,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/shop/:shopId/shift_adjust', // 日別シフト画面
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          final dateStr = state.uri.queryParameters['date']!;
+          return ShiftAdjastScreen(
+            shopId: shopId,
+            dateStr: dateStr,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/shop/:shopId', // 店舗詳細画面
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          return ShopScreen(shopId: shopId);
+        },
+      ),
+      GoRoute(
+        path: '/shop/:shopId/users', //  店舗従業員一覧画面
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          return ShopUsersScreen(shopId: shopId);
+        },
+      ),
+      GoRoute(
+        path: '/shop_register',// 店舗登録画面
+        builder: (context, state) => ShopRegisterScreen(),
+      ),
+      GoRoute(
+        path: '/staff_shop_register',// スタッフ用店舗登録画面
+        builder: (context, state) => StaffShopRegisterScreen(),
+      ),
+      GoRoute(
+        path: '/join_requests',// スタッフ用店舗登録画面
+        builder: (context, state) => JoinRequestsScreen(),
+      ),
+      GoRoute(
+        path: '/shop/:shopId/auto_adjust',
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          return AutoAdjustSettingsScreen(shopId: shopId);
+        },
       ),
     ],
   );
@@ -81,6 +168,16 @@ class MyApp extends ConsumerWidget {
     // 5. ルーターを使ってアプリ本体を表示
     return MaterialApp.router(
       title: 'Shift App',
+      theme: ThemeData(
+        primaryColor: const Color(0xFF001AAB), 
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 255, 255, 255), 
+          primary: const Color(0xFF001AAB),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color.fromARGB(255, 255, 255, 255),
+        ),
+      ),
       routerConfig: router,
     );
   }

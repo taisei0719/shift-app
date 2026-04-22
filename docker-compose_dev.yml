@@ -32,20 +32,23 @@ services:
 
   # フロントエンドサービス (Next.js)
   frontend:
-    build:
-      context: ./frontend # ビルドコンテキストを指定
-      dockerfile: Dockerfile # Dockerfile名も指定しとくと明確
+    # Dockerfileを使わずに直接nodeイメージを使う
+    image: node:22-slim
     container_name: shift_app_frontend
+    working_dir: /app
     ports:
       - "3000:3000"
-    #volumes:
-      #- ./frontend:/app
-      #- /app/node_modules # node_modulesはコンテナ内でインストールしたものを使うように除外
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # ホストのnode_modulesが混ざらないように保護
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://backend:5000 
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
       - HOST=0.0.0.0
+      - NODE_ENV=development
+    # 起動時にインストールしてdevモードで動かす
+    command: sh -c "npm install && npm run dev"
     depends_on:
-      - backend # バックエンドが起動してからフロントエンドを起動
+      - backend
 
 # ボリューム定義の追加
 volumes:

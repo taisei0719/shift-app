@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/auth_repository.dart'; // AuthNotifierを使うで！
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -107,9 +108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               // 4. 新規登録ボタン（ダミー）
               TextButton(
                 onPressed: () {
-                  // TODO: /register ルートに移動する処理を実装
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('新規登録画面に移動')));
+                  context.go('/register');
                 },
                 child: const Text('アカウントをお持ちでないですか？ 新規登録'),
               ),

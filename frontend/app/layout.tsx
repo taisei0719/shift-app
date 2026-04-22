@@ -35,7 +35,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                   ログイン中:
                 </p>
                 <p className="text-xl font-extrabold mt-1">{user.user_name}</p>
-                <p className="text-sm mt-1">役割: {user.role}</p>
+                <p className="text-sm mt-1">役割: {user.role === "admin" ? "オーナー" : "スタッフ"}</p>
                 <p className="text-sm mt-1">店舗: {user.shop_name || "未登録"}</p>
               </div>
 

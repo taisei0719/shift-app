@@ -11,7 +11,14 @@ export default function ShopDetail() {
   const router = useRouter();
   const params = useParams();
   const shopId = params.shopId as string; // useParamsはstring | string[]を返すため型アサーション
-  const [shop, setShop] = useState<{ name: string; location: string; shop_code: string } | null>(null);
+  const [shop, setShop] = useState<{ 
+    name: string;
+    location: string;
+    shop_code: string;
+    open_time: string;
+    close_time: string;
+  } | null>(null);
+  const [capacities, setCapacities] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
   const { user } = useUser(); 
 
@@ -24,6 +31,15 @@ export default function ShopDetail() {
     api.get(`/shop/${shopId}`)
       .then(res => setShop(res.data))
       .catch(() => setShop(null));
+      
+    // 定員設定の取得 (AutoAdjustConfig)
+    api.get(`/shop/${shopId}`)
+      .then(res => {
+        if (res.data && res.data.capacities) {
+          setCapacities(res.data.capacities);
+        }
+      })
+      .catch(err => console.error("定員設定の取得失敗:", err));
   }, [shopId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,8 +53,19 @@ export default function ShopDetail() {
     }
 
     try {
-      await api.post(`/shop/${shopId}`, { name: shop.name, location: shop.location });
-      setMessage("更新成功");
+      // 1. 店舗基本情報の更新
+      await api.post(`/shop/${shopId}`, { 
+        name: shop.name, 
+        location: shop.location,
+        open_time: shop.open_time,
+        close_time: shop.close_time
+      });
+
+      // 2. 定員設定の更新
+      await api.post(`/shop/${shopId}`, { capacities });
+
+      setMessage("すべての設定を更新しました");
+      setTimeout(() => setMessage(""), 3000);
     } catch (err: any) {
       setMessage(err.response?.data?.error || "更新に失敗しました");
     }
@@ -49,9 +76,7 @@ export default function ShopDetail() {
   const isAdmin = user && user.role === 'admin';
   const isReadOnly = !isAdmin;
 
-  // ----------------------------------------------------------------------
-  // ★ 1. 店舗情報未登録時の表示 (shop === null の場合)
-  // ----------------------------------------------------------------------
+  // 店舗情報未登録時の表示 (shop === null の場合)
   if (!shop) {
     const register_path = isAdmin ? "/shop_register" : "/staff_shop_register";
     const register_label = isAdmin ? "店舗登録ページへ移動" : "店舗参加（コード入力）へ移動"; 
@@ -85,9 +110,7 @@ export default function ShopDetail() {
     );
   }
 
-  // ----------------------------------------------------------------------
-  // ★ 2. 店舗情報登録済みの場合の表示 (shop !== null の場合)
-  // ----------------------------------------------------------------------
+  // 店舗情報登録済みの場合の表示 (shop !== null の場合)
   return (
     <div className="min-h-screen flex flex-col items-center py-10 bg-gray-50">
       <div className="w-full max-w-lg p-8 space-y-6 bg-white shadow-xl rounded-lg border border-gray-200">
@@ -104,31 +127,57 @@ export default function ShopDetail() {
         )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 店舗名 */}
+            <label className="block">
+              <span className="text-gray-700 font-medium">店舗名:</span>
+              <input
+                type="text"
+                value={shop.name}
+                onChange={(e) => setShop({ ...shop, name: e.target.value })}
+                required
+                readOnly={isReadOnly}
+                className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
+              />
+            </label>
           
-          {/* 店舗名 */}
-          <label className="block">
-            <span className="text-gray-700 font-medium">店舗名:</span>
-            <input
-              type="text"
-              value={shop.name}
-              onChange={(e) => setShop({ ...shop, name: e.target.value })}
-              required
-              readOnly={isReadOnly}
-              className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
-            />
-          </label>
-          
-          {/* 所在地 */}
-          <label className="block">
-            <span className="text-gray-700 font-medium">所在地:</span>
-            <input
-              type="text"
-              value={shop.location}
-              onChange={(e) => setShop({ ...shop, location: e.target.value })}
-              readOnly={isReadOnly}
-              className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
-            />
-          </label>
+            {/* 所在地 */}
+            <label className="block">
+              <span className="text-gray-700 font-medium">所在地:</span>
+              <input
+                type="text"
+                value={shop.location}
+                onChange={(e) => setShop({ ...shop, location: e.target.value })}
+                readOnly={isReadOnly}
+                className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* 開店時間 */}
+            <label className="block">
+              <span className="text-gray-700 font-medium">開店時間:</span>
+              <input
+                type="time"
+                value={shop.open_time}
+                onChange={(e) => setShop({ ...shop, open_time: e.target.value })}
+                readOnly={isReadOnly}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              />
+            </label>
+            {/* 閉店時間 */}
+            <label className="block">
+              <span className="text-gray-700 font-medium">閉店時間:</span>
+              <input
+                type="time"
+                value={shop.close_time}
+                onChange={(e) => setShop({ ...shop, close_time: e.target.value })}
+                readOnly={isReadOnly}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              />
+            </label>
+          </div>
           
           {/* 店舗コード (常に読み取り専用) */}
           <label className="block">
@@ -141,6 +190,26 @@ export default function ShopDetail() {
             />
             <p className="text-xs text-gray-500 mt-1">スタッフの参加に必要なコードです。</p>
           </label>
+
+          {/* 時間帯別定員設定 */}
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-gray-800 border-b pb-1">時間帯別・必要人数設定</h3>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto p-1 border border-dashed border-gray-200 rounded-md">
+              {Object.keys(capacities).sort().map((timeKey) => (
+                <div key={timeKey} className="flex flex-col items-center p-2 bg-white border border-gray-200 rounded shadow-sm">
+                  <span className="text-xs font-bold text-gray-500">{timeKey}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={capacities[timeKey]}
+                    onChange={(e) => setCapacities({ ...capacities, [timeKey]: parseInt(e.target.value) || 0 })}
+                    readOnly={isReadOnly}
+                    className="w-full text-center border-none text-lg font-bold text-indigo-600 focus:ring-0"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
           
           {/* 更新ボタン (管理者のみ表示) */}
           {!isReadOnly && (

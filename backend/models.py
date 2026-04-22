@@ -23,6 +23,7 @@ class User(db.Model):
     shop = db.relationship("Shop", backref="users", uselist=False)   
     # 参加リクエスト用カラムを追加
     shop_request_code = db.Column(db.String(32), nullable=True) # 暫定的なリクエスト店舗コード
+    total_priority = db.Column(db.Integer, default=3, nullable=False)
 
 # Shiftモデル: シフトの希望や確定シフトを格納する
 class Shift(db.Model):
@@ -71,6 +72,8 @@ class Shop(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False) #現在は店舗名の重複を許可していない
     location = db.Column(db.String(200), nullable=True)
     shop_code = db.Column(db.String(32), unique=True, nullable=False)     # shop_codeを32桁に拡張
+    open_time = db.Column(db.Time, nullable=False, default=db.func.time(9, 0))  # 09:00
+    close_time = db.Column(db.Time, nullable=False, default=db.func.time(22, 0)) # 22:00
     
     # ユーティリティ関数をクラスメソッドとして定義（重複チェックのため）
     @staticmethod

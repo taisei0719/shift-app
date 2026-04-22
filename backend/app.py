@@ -7,12 +7,12 @@ from models import db, User, Shop, Shift, AutoAdjustConfig
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 import random, string
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-import time
+import time as pytime
 import math
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
 from flask_jwt_extended import create_refresh_token, set_refresh_cookies
@@ -151,7 +151,7 @@ def wait_for_db():
             except Exception as e:
                 # 失敗したら待機
                 print(f"WARNING: DB not ready yet (attempt {i+1}/10). Waiting 2 seconds...")
-                time.sleep(2)
+                pytime.sleep(2)
         
         # 10回試行しても接続できなかった場合
         print("ERROR: Database connection failed after multiple retries.")
@@ -165,7 +165,12 @@ def init_db():
         # teststore1の追加
         shop = Shop.query.filter_by(name='teststore1').first()
         if not shop:
-            shop = Shop(name='teststore1', location=None, shop_code=Shop.generate_unique_code())
+            shop = Shop(name='teststore1',
+                        location=None,
+                        shop_code=Shop.generate_unique_code(),
+                        open_time=time(9, 0),
+                        close_time=time(22, 0)
+                        )
             db.session.add(shop)
             db.session.flush()
             
@@ -389,9 +394,9 @@ def logout():
     
     return response, 200 # 修正後のレスポンスを返す
 
-# -------------------- API: シフト提出 (JWT 対応版) --------------------
+# -------------------- API: シフト提出  --------------------
 @app.route("/api/shifts/submit_request", methods=["POST"]) 
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def submit_shift_request():
     # 1. ログイン/所属店舗チェック (JWTからユーザー情報を取得)
     user_id_str = get_jwt_identity()
@@ -462,9 +467,9 @@ def submit_shift_request():
 
     return jsonify({"message": f"日付 {date_str} のシフト希望を{new_request_count}件登録しました！"})
 
-# -------------------- API: 指定年月の店舗別シフト状況取得 (JWT 対応 Admin専用) --------------------
+# -------------------- API: 指定年月の店舗別シフト状況取得 (Admin専用) --------------------
 @app.route("/api/admin/shifts/status/<int:year>/<int:month>", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_monthly_shift_status(year, month):
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
@@ -534,9 +539,9 @@ def get_monthly_shift_status(year, month):
     # 6. JSONレスポンスとして返す
     return jsonify({"monthly_status": monthly_status_list}), 200
 
-# -------------------- API: 指定日のシフト一覧取得/調整用 (JWT 対応 Admin専用) --------------------
+# -------------------- API: 指定日のシフト一覧取得/調整用 (Admin専用) --------------------
 @app.route("/api/admin/shifts/<date_str>", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_shifts_for_admin(date_str):
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
@@ -592,9 +597,9 @@ def get_shifts_for_admin(date_str):
 
     return jsonify({"staff_shifts": list(staff_data.values())}), 200
 
-# -------------------- API: シフト確定・手動調整 (JWT 対応 Admin専用) --------------------
+# -------------------- API: シフト確定・手動調整 (Admin専用) --------------------
 @app.route("/api/admin/shifts/confirm", methods=["POST"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def confirm_shifts():
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
@@ -675,9 +680,9 @@ def confirm_shifts():
         print(f"シフト確定エラー: {e}")
         return jsonify({"error": f"シフト確定処理中にエラーが発生しました: {str(e)}"}), 500
     
-# -------------------- API: 指定日の自分の確定シフト取得 (JWT 対応 Staff/Admin 向け) --------------------
+# -------------------- API: 指定日の自分の確定シフト取得 (Staff/Admin 向け) --------------------
 @app.route("/api/shifts/<date_str>", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_shifts(date_str):
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
@@ -717,9 +722,9 @@ def get_shifts(date_str):
 
     return jsonify({"confirmed_shifts": confirmed_shifts_list}), 200
 
-# -------------------- API: 指定年月の自分の全シフト取得 (JWT 対応 Staff/Admin 向け) --------------------
+# -------------------- API: 指定年月の自分の全シフト取得 (Staff/Admin 向け) --------------------
 @app.route("/api/shifts/month/<int:year>/<int:month>", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_user_shifts_by_month(year, month):
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity()
@@ -768,9 +773,9 @@ def get_user_shifts_by_month(year, month):
 
     return jsonify({"shifts_by_date": shifts_by_date}), 200
 
-# -------------------- API: 店舗登録 (JWT 対応版) --------------------
+# -------------------- API: 店舗登録 --------------------
 @app.route("/api/shop_register", methods=["POST"])
-@jwt_required(fresh=True) # ★ JWT認証必須 (機密性の高い操作なので fresh=True を推奨)
+@jwt_required(fresh=True) # (機密性の高い操作なので fresh=True を推奨)
 def shop_register():
     # 1. ユーザー情報と権限チェック
     user_id_str = get_jwt_identity()
@@ -781,7 +786,7 @@ def shop_register():
         return jsonify({"error": "ユーザーが見つかりません"}), 404
     
     role = admin_user.role
-    if role != "admin": # ★ ロールチェックをトークンから
+    if role != "admin": # ロールチェックをトークンから
         return jsonify({"error": "管理者権限がありません"}), 403
     if admin_user.shop_id:
          return jsonify({"error": "既に店舗に所属しています"}), 400
@@ -803,7 +808,7 @@ def shop_register():
     admin_user = User.query.get(manager_id)
     db.session.commit() # DBの変更をコミット
     
-    # 4. 新しい shop_id を含む JWT ペイロードを作成し、トークンを再発行する
+    # 4. 新しいshop_idを含むJWTペイロードを作成し、トークンを再発行する
     new_access_token = create_access_token(identity=str(admin_user.id), fresh=True) 
     new_refresh_token = create_refresh_token(identity=str(admin_user.id))
 
@@ -821,14 +826,14 @@ def shop_register():
         }
     })
     
-    set_access_cookies(response, new_access_token) # ★ アクセストークンをクッキーにセット
-    set_refresh_cookies(response, new_refresh_token) # ★ リフレッシュトークンをクッキーにセット
+    set_access_cookies(response, new_access_token) # アクセストークンをクッキーにセット
+    set_refresh_cookies(response, new_refresh_token) # リフレッシュトークンをクッキーにセット
 
     return response
 
-# -------------------- API: 店舗参加リクエスト (JWT 対応版) --------------------
+# -------------------- API: 店舗参加リクエスト --------------------
 @app.route('/api/join_shop/request', methods=['POST'])
-@jwt_required() # JWT認証必須
+@jwt_required()
 def join_shop_request():
     data = request.get_json()
     shop_code = data.get('shop_code')
@@ -855,9 +860,9 @@ def join_shop_request():
 
     return jsonify({"message": f"店舗 '{shop.name}' への参加リクエストをオーナーに送信しました。"}), 200
     
-# -------------------- API: 参加リクエスト一覧取得 (JWT 対応 Admin専用) --------------------
+# -------------------- API: 参加リクエスト一覧取得 (Admin専用) --------------------
 @app.route("/api/join_requests", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_join_requests():
     # 1. JWTからユーザー情報と権限をチェック
     user_id_str = get_jwt_identity()
@@ -898,9 +903,9 @@ def get_join_requests():
     return jsonify({"requests": request_list}), 200
 
 
-# -------------------- API: 参加リクエスト承認/拒否 (JWT 対応 Admin専用) --------------------
+# -------------------- API: 参加リクエスト承認/拒否 (Admin専用) --------------------
 @app.route("/api/join_requests/<int:user_id>", methods=["POST"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def handle_join_request(user_id):
     # 1. JWTから管理者ユーザー情報と権限をチェック
     admin_id_str = get_jwt_identity()
@@ -945,11 +950,11 @@ def handle_join_request(user_id):
 
     return jsonify({"message": message}), 200
 
-# -------------------- API: 店舗詳細取得 (JWT 対応版) --------------------
+# -------------------- API: 店舗詳細取得 --------------------
 @app.route("/api/shop/<int:shop_id>", methods=["GET"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def get_shop_detail(shop_id):
-    # 1. JWTからユーザー情報を取得
+    # 1.ユーザー情報を取得
     user_id_str = get_jwt_identity()
     user_id = int(user_id_str)
 
@@ -971,18 +976,25 @@ def get_shop_detail(shop_id):
     if not shop:
          # 非常に稀なケース（ユーザーのshop_idがDBから削除された場合など）
         return jsonify({"error": "店舗が見つかりません"}), 404
+    
+    # 設定テーブルからデータを取る
+    config = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
         
     # 4. JSONで返す (ロジックは変更なし)
     return jsonify({
         "name": shop.name,
         "location": shop.location,
         "shop_code": shop.shop_code,
-        "shop_id": shop.id 
+        "shop_id": shop.id,
+        "config": {
+            "max_staff": config.max_staff if config else 5,
+            "min_staff": config.min_staff if config else 1
+        }
     })
 
-# -------------------- API: 店舗情報更新 (JWT 対応 Admin専用) --------------------
+# -------------------- API: 店舗情報更新 (Admin専用) --------------------
 @app.route("/api/shop/<int:shop_id>", methods=["POST"])
-@jwt_required() # ★ JWT認証必須
+@jwt_required()
 def update_shop_detail(shop_id):
     # 1. JWTから管理者情報と権限を取得
     admin_id_str = get_jwt_identity()
@@ -1017,12 +1029,12 @@ def update_shop_detail(shop_id):
         if Shop.query.filter_by(name=new_name).first():
             return jsonify({"error": "その店舗名は既に使われています"}), 400
         
-        name_changed = True # ★ 店舗名変更フラグを立てる
+        name_changed = True # 店舗名変更フラグを立てる
 
     # 4. データ更新
     if new_name:
         shop.name = new_name
-        # session["shop_name"] = new_name # ★ セッション更新は削除
+        # session["shop_name"] = new_name # セッション更新は削除
     if new_location is not None:
         shop.location = new_location
 
@@ -1047,7 +1059,7 @@ def update_shop_detail(shop_id):
     # 店舗名が変わらなかった場合は、通常のレスポンスを返す
     return jsonify({"message": "店舗情報を更新しました"}), 200
 
-# -------------------- API: 店舗の従業員一覧取得 (JWT 対応版) --------------------
+# -------------------- API: 店舗の従業員一覧取得 --------------------
 @app.route("/api/shops/<int:shop_id>/users", methods=["GET"])
 @jwt_required()
 def get_shop_users(shop_id):
@@ -1095,11 +1107,13 @@ def get_shop_users(shop_id):
         "shop": shop_info,
         "users": user_list
     }), 200
-    
+
+# -------------------- 自動調整ロジック補助関数 --------------------     
 def _parse_hour_float(t):
     # t: datetime.time -> float hour (e.g. 9:30 -> 9.5)
     return t.hour + t.minute / 60.0
 
+# -------------------- 自動調整ロジック本体 --------------------
 def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
     """
     request_shifts: list of Shift objects (shift_type=='request') for the shop and date
@@ -1125,13 +1139,13 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
             "user_id": s.user_id,
             "start_f": sf,
             "end_f": ef,
-            "duration": duration,
             "priority": priority,
-            "shift": s
+            "shift": s,
+            "rand": random.random() # 同一優先度内でのランダム性
         })
         
-        # sort by priority desc, shorter duration first (tie-breaker)
-    reqs.sort(key=lambda r: (-r['priority'], r['duration']))
+        # ソート順: priorityが高い順(降順)、同じならランダム
+    reqs.sort(key=lambda r: (-r['priority'], r['rand']))
 
     assignments = []
     accepted_count = {}
@@ -1142,8 +1156,8 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
         # map to integer hour slots covering the shift (floor start .. ceil end-1)
         start_hour = int(r['start_f']//1)
         end_hour = int((r['end_f'] - 1e-9)//1)  # inclusive last hour index if end > integer
-        # Build list of hours to check conservatively: from floor(start) to ceil(end)-1
-        hours = list(range(int(r['start_f']), int(math.ceil(r['end_f']))))
+        hours = list(range(int(r['start_f']), int(math.ceil(r['end_f'])))) # Build list of hours to check conservatively: from floor(start) to ceil(end)-1
+        
         # check capacity for every hour
         can_assign = True
         for h in hours:
@@ -1173,6 +1187,7 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map):
 
     return assignments, metrics
 
+# -------------------- API: 自動調整の設定取得/保存 (Admin専用) --------------------
 @app.route("/api/shop/<int:shop_id>/auto_adjust/config", methods=["GET", "POST"])
 @jwt_required()
 def shop_auto_adjust_config(shop_id):
@@ -1208,11 +1223,12 @@ def shop_auto_adjust_config(shop_id):
             cfg.capacities = capacities
             cfg.options = options
         db.session.commit()
-        return jsonify({"message": "設定を保存したで"}), 200
+        return jsonify({"message": "設定を保存しました"}), 200
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({"error": f"保存に失敗したで: {str(e)}"}), 500
-    
+
+# -------------------- API: 指定日のシフトを自動調整して確定 (Admin専用) --------------------    
 @app.route("/api/admin/shifts/auto_adjust/<date_str>", methods=["POST"])
 @jwt_required()
 def admin_auto_adjust(date_str):
@@ -1276,16 +1292,16 @@ def admin_auto_adjust(date_str):
                 )
                 db.session.add(new_shift)
             db.session.commit()
-            return jsonify({"message": "自動確定を適用したで", "assignments": assignments, "metrics": metrics}), 200
+            return jsonify({"message": "自動確定を適用しました", "assignments": assignments, "metrics": metrics}), 200
         except Exception as e:
             db.session.rollback()
-            return jsonify({"error": f"適用に失敗したで: {str(e)}"}), 500
+            return jsonify({"error": f"適用に失敗しました: {str(e)}"}), 500
 
     return jsonify({"assignments": assignments, "metrics": metrics}), 200
 
 # -------------------- API: セッション取得 (JWT対応版) --------------------
 @app.route("/api/session")
-@jwt_required(optional=True) # ★ トークンがなくても関数が実行されるようにする
+@jwt_required(optional=True) # トークンがなくても関数が実行されるようにする
 def get_session():
     # 1. JWTからユーザー情報を取得
     user_id_str = get_jwt_identity() 
