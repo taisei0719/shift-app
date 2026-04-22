@@ -24,9 +24,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   // 全体のコンテナをflexにし、背景色を設定
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-gray-50">
         {/*サイドバーのモダン化*/}
-        <div className="flex flex-col w-64 min-w-[256px] bg-indigo-700 text-white p-6 shadow-2xl z-10 transition-all duration-300 fixed bottom-0 left-0 right-0 h-16 lg:h-auto lg:relative lg:flex-col lg:justify-start lg:shadow-none">
+        <div className="flex flex-col w-full lg:w-64 lg:min-w-[256px] bg-indigo-700 text-white p-6 shadow-2xl z-10 transition-all duration-300 fixed bottom-0 left-0 right-0 h-16 lg:h-auto lg:relative lg:flex-col lg:justify-start lg:shadow-none lg:fixed-none lg:bottom-auto lg:left-auto lg:right-auto">
           {user ? (
             <>
               {/* ユーザー情報 (モバイルでは非表示) */}
