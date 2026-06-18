@@ -6,7 +6,7 @@ import "./globals.css";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, UserProvider } from "./context/UserContext";
-import axios from "axios";
+import { api, TOKEN_STORAGE_KEY } from "@/lib/api";
 
 // nav-link に相当するクラスを定義
 const NavLinkClasses = "text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 lg:hover:bg-indigo-600 lg:active:bg-indigo-800 text-center text-xs lg:text-base flex-1 lg:flex-none";
@@ -18,7 +18,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const handleLogout = async () => {
-    await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/logout`, {}, { withCredentials: true });
+    await api.post("/logout");
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     window.location.href = "/";
   };
 

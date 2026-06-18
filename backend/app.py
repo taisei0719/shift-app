@@ -59,7 +59,7 @@ app.config['SQLALCHEMY_POOL_SIZE'] = 5
 db.init_app(app)
 
 # Vercelの公開URLを設定するための環境変数を定義
-FRONTEND_URL = os.getenv("FRONTEND_URL") 
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 # 許可するオリジンをリスト形式で定義
 # VercelのURLとローカルホストを両方許可することで、クッキー送信を確実にします。
@@ -70,13 +70,16 @@ allowed_origins = [
 ]
 # Noneを除外する（念のため）
 final_origins = [o for o in allowed_origins if o is not None]
+# Vercelのブランチ/プレビューデプロイ (例: shift-app-git-develop-taiseis-projects-dc838d86.vercel.app)
+# はデプロイごとにURLが変わるため、プロジェクト固有のパターンを正規表現で許可する
+final_origins.append(r"^https://shift-app-[a-z0-9-]+-taiseis-projects-dc838d86\.vercel\.app$")
 
 CORS(
     app,
     # resourcesを使う形式を維持し、originsにリストを渡す
     resources={r"/api/*": {"origins": final_origins}},
-    supports_credentials=True, 
-    allow_headers=["Content-Type", "Authorization"] 
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"]
 )
 
 # -------------------- JWTエラーハンドリング --------------------
