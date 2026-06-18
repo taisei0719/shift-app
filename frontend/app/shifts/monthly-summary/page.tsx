@@ -185,7 +185,6 @@ function MonthlySummaryContent() {
             <div className="py-12 text-center text-gray-400 text-sm">読み込み中...</div>
           ) : confirmedDays.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-3xl mb-3">📭</p>
               <p className="text-gray-400 text-sm">この月の確定シフトはまだありません</p>
               <Link
                 href={`/shifts?year=${year}&month=${month}`}
@@ -218,7 +217,6 @@ function MonthlySummaryContent() {
                       <div className="flex-1 min-w-0">
                         {isOff ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">🏖️</span>
                             <span className="text-sm font-medium text-gray-500">休日</span>
                           </div>
                         ) : (
@@ -295,7 +293,7 @@ function MonthlySummaryContent() {
                       {request && confirmed && request.start_time !== '00:00' && confirmed.start_time !== '00:00' &&
                         (request.start_time !== confirmed.start_time || request.end_time !== confirmed.end_time) && (
                           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">
-                            ⚠️ 調整あり
+                            調整あり
                           </span>
                         )
                       }

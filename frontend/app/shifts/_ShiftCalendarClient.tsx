@@ -141,12 +141,12 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
           end: isDayOff ? '00:00' : endTime,
         }],
       });
-      setSubmitMessage('✅ シフト希望を提出しました！');
+      setSubmitMessage('シフト希望を提出しました！');
       await fetchShifts(year, month);
       // 提出後は詳細モードに切替
       setPanelMode('detail');
     } catch (err: any) {
-      setSubmitMessage(`❌ 失敗: ${err.response?.data?.error ?? 'サーバーエラー'}`);
+      setSubmitMessage(`失敗: ${err.response?.data?.error ?? 'サーバーエラー'}`);
     } finally {
       setSubmitting(false);
     }
@@ -198,7 +198,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         {confirmed ? (
           <div className={`rounded-xl border-2 p-4 ${confirmed.start_time === '00:00' ? 'bg-gray-50 border-gray-200' : 'bg-emerald-50 border-emerald-300'}`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">{confirmed.start_time === '00:00' ? '🏖️' : '✅'}</span>
               <span className="text-sm font-bold text-gray-700">確定シフト</span>
             </div>
             {confirmed.start_time === '00:00' ? (
@@ -221,7 +220,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         {request ? (
           <div className={`rounded-xl border p-4 ${request.start_time === '00:00' ? 'bg-gray-50 border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">{request.start_time === '00:00' ? '😴' : '⏳'}</span>
               <span className="text-sm font-semibold text-gray-600">提出済み希望</span>
               <span className="text-xs text-gray-400 ml-auto">未確定</span>
             </div>
@@ -247,7 +245,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             onClick={() => setPanelMode('form')}
             className="w-full mt-2 py-2 px-4 border-2 border-indigo-400 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition duration-150"
           >
-            {request ? '✏️ 希望シフトを修正する' : '＋ 希望シフトを提出する'}
+            {request ? '希望シフトを修正する' : '＋ 希望シフトを提出する'}
           </button>
         )}
       </div>
@@ -275,7 +273,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
         </div>
 
         {submitMessage && (
-          <p className={`text-sm text-center font-semibold p-2 rounded-lg ${submitMessage.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <p className={`text-sm text-center font-semibold p-2 rounded-lg ${submitMessage.startsWith('失敗') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
             {submitMessage}
           </p>
         )}
@@ -292,7 +290,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
             }}
             className="w-5 h-5 text-indigo-600 rounded"
           />
-          <span className="text-sm font-medium text-gray-700">🏖️ この日は休みを希望する</span>
+          <span className="text-sm font-medium text-gray-700">この日は休みを希望する</span>
         </label>
 
         {/* 時間入力 */}
@@ -375,7 +373,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                   href={`/shifts/monthly-summary?year=${year}&month=${month}`}
                   className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-full text-xs font-semibold transition"
                 >
-                  📋 {month}月の確定シフト一覧を見る
+                  {month}月の確定シフト一覧を見る
                 </Link>
               </div>
             </div>
@@ -472,7 +470,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
               panelMode === 'detail' ? renderDetailPanel() : renderFormPanel()
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="text-4xl mb-3">📅</div>
                 <p className="text-gray-400 text-sm font-medium">
                   カレンダーから日付を選んでください
                 </p>

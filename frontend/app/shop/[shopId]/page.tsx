@@ -350,7 +350,6 @@ export default function ShopDetail() {
                 href={`/shop/${shopId}/auto-adjust`}
                 className="flex items-center justify-center gap-2 w-full py-2 px-4 border-2 border-indigo-500 text-indigo-600 rounded-md text-sm font-semibold hover:bg-indigo-50 transition duration-150"
               >
-                <span>⚙️</span>
                 シフト自動調整の詳細設定へ
                 <span>→</span>
               </Link>

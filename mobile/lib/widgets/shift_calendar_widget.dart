@@ -42,10 +42,10 @@ class ShiftCalendarWidget extends StatelessWidget {
         final confirmed = shiftList.where((s) => s['shift_type'] == 'confirmed').toList();
         final requested = shiftList.where((s) => s['shift_type'] == 'request').toList();
         if (confirmed.isNotEmpty) {
-          statusText = '✅ 確定済';
+          statusText = '確定済';
           statusColor = Colors.green.shade100;
         } else if (requested.isNotEmpty) {
-          statusText = '⏳ 未確定';
+          statusText = '未確定';
           statusColor = Colors.yellow.shade100;
         }
       }

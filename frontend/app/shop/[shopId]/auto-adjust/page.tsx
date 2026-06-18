@@ -318,7 +318,6 @@ export default function AutoAdjustSettingsPage() {
  
           {histories.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-3">📊</p>
               <p className="text-sm text-gray-400">まだ履歴がありません</p>
               <p className="text-xs text-gray-300 mt-1">シフトを確定すると集計が開始されます</p>
             </div>
