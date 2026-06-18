@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../lib/api";
+import { api, TOKEN_STORAGE_KEY } from "../lib/api";
 import { useUser } from "./context/UserContext";
 
 export default function Login() {
@@ -18,9 +18,13 @@ export default function Login() {
     e.preventDefault();
     try {
       const res = await api.post("/login", { identifier, password });
+      // Cookieが使えない端末(Safariなど)向けに、トークンをlocalStorageにも保存する
+      if (res.data.access_token) {
+        window.localStorage.setItem(TOKEN_STORAGE_KEY, res.data.access_token);
+      }
       // ログイン成功時、APIから返ってきたユーザー情報でコンテキストを即座に更新する
       if (res.data.user) {
-        setUser(res.data.user); 
+        setUser(res.data.user);
       }
       router.push(res.data.user.role === "staff" ? "/staff" : "/admin");
     } catch (err) {

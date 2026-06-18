@@ -3,7 +3,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import axios from "axios";
+import { api } from "@/lib/api";
 
 // ★ 修正: shop_request_code を UserInfo に追加
 interface UserInfo {
@@ -40,8 +40,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   // ここでは提供コードに合わせて axios を直接使用する。
   const refreshUser = async () => {
     try {
-      // セッション情報を取得
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/session`, { withCredentials: true });
+      // セッション情報を取得（Cookieが使えない端末ではAuthorizationヘッダーで認証される）
+      const res = await api.get("/session");
       
       const userData = res.data.user;
 
