@@ -9,7 +9,7 @@ description: コミット済みの現在のブランチをリモートにpushす
 
 1. `git status` で未コミットの変更が無いか確認する。残っていればコミットするか確認してから進める（コミット自体は sbi-commit の範囲）。
 2. push前に、pushは共有システムに反映される操作である旨をユーザーに伝えて確認する。ただしユーザーの依頼がこの時点で明示的に「push」と指示している場合は、それ自体を承認とみなしてよい。
-3. `git push`（または upstream未設定なら `git push -u origin "<branch>"`）を実行する。force pushはしない。ブランチ名は `#` を含むためクォートする。
+3. `git push`（または upstream未設定なら `git push -u origin <branch>`）を実行する。force pushはしない。
 4. push結果を報告して止まる。PR作成には進まない。次に何をするかはユーザーの指示を待つ。
 
 ## Fail-safe
