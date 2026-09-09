@@ -49,7 +49,7 @@ body:
     id: branch-name
     attributes:
       label: 想定ブランチ名
-      description: "命名規約: sbi/{issue番号}-{概要} （例: sbi/13-position-capacity）"
-      placeholder: "sbi/13-position-capacity"
+      description: "命名規約: #{issue番号}-{概要} （例: #13-position-capacity）"
+      placeholder: "#13-position-capacity"
     validations:
       required: false
