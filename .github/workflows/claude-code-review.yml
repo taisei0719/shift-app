@@ -1,0 +1,35 @@
+name: Claude Code Review
+
+# SBIブランチのPR作成・更新をトリガーに、Claudeが自動でコードレビューコメントを投稿する。
+# 事前準備: リポジトリの Settings > Secrets and variables > Actions に
+#   ANTHROPIC_API_KEY を登録しておくこと（このワークフローからは登録できない）。
+# 注意: anthropics/claude-code-action の入力パラメータはバージョンにより変わりうるため、
+#   導入時に https://github.com/anthropics/claude-code-action の最新READMEと突き合わせて確認すること。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # PRの差分に対して自動レビューを行い、コメントとして投稿する（マージはブロックしない）
+          direct_prompt: |
+            このPRの差分をレビューしてください。
+            - バグ・不整合の指摘
+            - docs/design.md（UI変更時）・CLAUDE.mdの規約違反
+            - 簡潔なコードレビューコメントとしてPRに投稿
