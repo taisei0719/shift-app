@@ -3,6 +3,8 @@
 shift-appの開発は、プロダクトバックログを **PBI → SBI** に分解して進めるスクラム駆動開発を採用する。
 各フェーズでClaudeを活用する **AIDLC (AI-Driven Development Life Cycle)** の考え方に基づき、バックログ分解・実装・レビューにAIを組み込む。
 
+環境構成（dev/stg/prod）とプレビュー確認方法は [docs/environments.md](environments.md) を参照。
+
 ## 1. PBI / SBI の定義
 
 - **PBI (Product Backlog Item)**: ユーザーに価値をもたらす機能単位。README「今後の実装予定」やヒアリングから積む。ブランチは持たない。
