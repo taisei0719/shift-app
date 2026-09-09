@@ -1,8 +1,14 @@
 name: Claude Code Review
 
 # SBIブランチのPR作成・更新をトリガーに、Claudeが自動でコードレビューコメントを投稿する。
-# 事前準備: リポジトリの Settings > Secrets and variables > Actions に
-#   ANTHROPIC_API_KEY を登録しておくこと（このワークフローからは登録できない）。
+#
+# 事前準備（Claude Pro/MaxのOAuthトークンを使う場合）:
+#   1. ローカルで `claude setup-token` を実行し、OAuthトークンを発行する
+#   2. リポジトリの Settings > Secrets and variables > Actions に
+#      CLAUDE_CODE_OAUTH_TOKEN という名前でそのトークンを登録する（このワークフローからは登録できない）
+#   3. Pro/Maxのレート制限（時間帯/週単位）を消費する点に注意。頻繁に上限に達する場合は
+#      ANTHROPIC_API_KEY（従量課金の通常API）方式に切り替える
+#
 # 注意: anthropics/claude-code-action の入力パラメータはバージョンにより変わりうるため、
 #   導入時に https://github.com/anthropics/claude-code-action の最新READMEと突き合わせて確認すること。
 
@@ -26,7 +32,7 @@ jobs:
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # PRの差分に対して自動レビューを行い、コメントとして投稿する（マージはブロックしない）
           direct_prompt: |
             このPRの差分をレビューしてください。

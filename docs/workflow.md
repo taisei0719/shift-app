@@ -33,6 +33,7 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 ## 4. Claude自動レビュー
 
 - `.github/workflows/claude-code-review.yml` により、PR作成・更新時に自動でコードレビューコメントが投稿される。
+- 認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。サブスクリプションのレート制限を消費するため、頻繁に上限に達する場合は `ANTHROPIC_API_KEY`（従量課金API）方式への切り替えを検討する。
 - 初期設定はコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
 - 自動レビューとは別に、手動で `/code-review` （高効果度が必要な場合は `ultra`）を実行して深掘りレビューを行ってもよい。
 
