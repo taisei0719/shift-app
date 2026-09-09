@@ -14,10 +14,11 @@ description: push済みのブランチから .github/pull_request_template.md �
    - `Closes #<SBI番号>` / `関連PBI: #<PBI番号>`
    - 変更内容・動作確認内容は実際に行った内容のみを書く
    - DoDチェックリストは実際に確認できた項目だけチェックし、未確認の項目は空欄のまま残す
-5. `gh pr create --title "..." --body "..."` で作成し、URLを報告する。`claude-code-review` ワークフローが自動でレビューコメントを投稿する旨も伝える。
+5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。`claude-code-review` ワークフローが自動でレビューコメントを投稿する旨も伝える。
 6. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
 
 ## Fail-safe
 
 - SBI issueが特定できない/紐づくPBIが不明な場合は、Closes行を空欄のまま作成せずユーザーに確認する。
 - 対象ブランチがmain/developの場合はPRを作成しない（作業ブランチが無い状態のため、先にブランチを切るべきか確認する）。
+- `Closes #` はリポジトリのデフォルトブランチ（`main`）へのマージでしか自動発火しない。SBI PRは`develop`向けなので、マージされてもissueは自動クローズされない。マージ報告を受けたら手動で `gh issue close <SBI番号>` する（PR作成時点ではなく、マージ確認後の作業）。

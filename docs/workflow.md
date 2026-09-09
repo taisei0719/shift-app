@@ -16,9 +16,9 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 2. **スプリントプランニング**: PBIをSBIに分解する。分解の壁打ちにClaudeを使ってよい（AIDLCの「Intent capture → Unit-level design」フェーズ）。各SBIは `[SBI] ` テンプレートで起票し、親PBI番号を紐づける。PBI側の「関連SBI」欄にもチェックリストとして追記する。
 3. **ブランチ作成**: SBI issueから `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。
 4. **実装**: Claude Codeとのペアプロで実装を進める。SBIのDefinition of Doneを満たすまで作業する。
-5. **PR作成**: `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・更新をトリガーに `claude-code-review` ワークフローが自動でレビューコメントを投稿する。
+5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・更新をトリガーに `claude-code-review` ワークフローが自動でレビューコメントを投稿する。
 6. **人間レビュー**: Claudeの自動レビューコメントを確認し、必要な修正を行う。人間のレビュアーが最終承認する。
-7. **マージ**: マージ後、SBI issueは自動クローズ（`Closes #`）される。すべての子SBIがクローズされたら、PBI issueを手動でクローズする。
+7. **マージ**: `develop` にマージする。GitHubの `Closes #` はリポジトリのデフォルトブランチ（`main`）へのマージでしか自動発火しないため、`develop` へのマージではSBI issueは自動クローズされない。マージ後に手動で `gh issue close <SBI番号>` する。すべての子SBIがクローズされたら、PBI issueを手動でクローズする。`develop` から `main` へのリリースマージ時には、そこに含まれるSBI issueの `Closes #` が自動発火する場合がある（すでに手動クローズ済みなら影響なし）。
 
 ## 3. ブランチ命名規約
 
