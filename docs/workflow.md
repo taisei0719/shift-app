@@ -14,7 +14,7 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 
 1. **PBI起票**: `[PBI] ` テンプレートでissueを作成し、ユーザーストーリー・受け入れ条件・優先度を書く。
 2. **スプリントプランニング**: PBIをSBIに分解する。分解の壁打ちにClaudeを使ってよい（AIDLCの「Intent capture → Unit-level design」フェーズ）。各SBIは `[SBI] ` テンプレートで起票し、親PBI番号を紐づける。PBI側の「関連SBI」欄にもチェックリストとして追記する。
-3. **ブランチ作成**: SBI issueから `#{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `#13-position-capacity`）。
+3. **ブランチ作成**: SBI issueから `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。
 4. **実装**: Claude Codeとのペアプロで実装を進める。SBIのDefinition of Doneを満たすまで作業する。
 5. **PR作成**: `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・更新をトリガーに `claude-code-review` ワークフローが自動でレビューコメントを投稿する。
 6. **人間レビュー**: Claudeの自動レビューコメントを確認し、必要な修正を行う。人間のレビュアーが最終承認する。
@@ -23,14 +23,14 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 ## 3. ブランチ命名規約
 
 ```
-#{issue番号}-{kebab-caseの概要}
+{issue番号}-{kebab-caseの概要}
 ```
 
-例: `#13-position-capacity`, `#27-fix-shift-overlap`
+例: `13-position-capacity`, `27-fix-shift-overlap`
 
 PBI自体はブランチを持たない（トラッキング用のissueのみ）。
 
-`#` はシェルのコメント開始文字のため、ブランチ名を含むコマンドは必ずクォートする（例: `git checkout "#13-position-capacity"`, `git push -u origin "#13-position-capacity"`）。クォートし忘れると意図しない挙動になるので注意する。
+ブランチ名に `#` を使わない。`#13-position-capacity` のように issue番号の前に `#` を付けると、GitHub側のPR head追跡が壊れ、pushしても `claude-code-review` の `synchronize` イベントが発火しなくなる不具合を実際に確認した（SBI #13、PR #16 → #17参照）。issue番号は `#` なしでそのまま先頭に置く。
 
 ## 4. Claude自動レビュー
 
@@ -51,7 +51,18 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 
 例: `#13 feat: mainブランチにPR必須の保護ルールを追加`
 
-## 6. Definition of Done（共通）
+## 6. ブランチ保護とマージ権限
+
+- `main`(prod)・`develop`(dev/stg相当)ともに以下のブランチ保護ルールを設定済み:
+  - 直接push禁止（PRを経由しないと変更できない）
+  - PRの作成が必須（レビュー承認自体は必須にしていない。現状は開発者1名のため、承認必須にすると自分のPRをマージできなくなるのを避けるための判断）
+  - force push禁止・ブランチ削除禁止
+  - `enforce_admins` はOFF（管理者はブランチ保護をバイパス可能。緊急時のセルフマージ用の逃げ道として維持する）
+- **マージ権限**: 現状の開発者（リポジトリ管理者）が、main/developへのマージを単独で承認・実行する。Claude自動レビュー（`claude-code-review`）のコメントを確認したうえでマージする運用とする。
+- ステータスチェックの必須化はまだ行っていない。`claude-code-review` はコメント投稿のみでマージをブロックしない設計（4章）と一致させるため。チェックが安定して走ることを確認できたら、必須化を再検討する。
+- 開発者が増えた場合は、承認必須（`required_approving_review_count` を1以上）に切り替えることを検討する。
+
+## 7. Definition of Done（共通）
 
 - [ ] SBIに書かれた受け入れ条件を満たしている
 - [ ] 実機/ローカル環境で動作確認済み
