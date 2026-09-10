@@ -8,11 +8,13 @@ os.close(_db_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-32-bytes-minimum")
 
-import pytest
-from werkzeug.security import generate_password_hash
+# NOTE: 上でDATABASE_URL等の環境変数を設定した後にimportする必要があるため、
+# 以下のimportをファイル先頭に移動することはできない（意図的なE402違反）。
+import pytest  # noqa: E402
+from werkzeug.security import generate_password_hash  # noqa: E402
 
-from app import app as flask_app
-from models import db as _db, Shop, User
+from app import app as flask_app  # noqa: E402
+from models import db as _db, Shop, User  # noqa: E402
 
 
 def _cleanup_test_db():
