@@ -93,6 +93,7 @@ def make_user(db_session):
 def auth_header(client):
     def _login(email, password):
         res = client.post("/api/login", json={"identifier": email, "password": password})
+        assert res.status_code == 200, res.get_json()
         token = res.get_json()["access_token"]
         return {"Authorization": f"Bearer {token}"}
 

@@ -69,6 +69,7 @@ def test_admin_confirm_shifts(client, make_shop, make_user, auth_header):
 
     staff_headers = auth_header("staff3@example.com", "password123")
     check = client.get("/api/shifts/2026-10-01", headers=staff_headers)
+    assert check.status_code == 200
     assert len(check.get_json()["confirmed_shifts"]) == 1
 
 
