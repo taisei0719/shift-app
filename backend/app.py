@@ -274,16 +274,8 @@ def register():
     db.session.commit() # ユーザーID (user.id) が確定する
 
     # ★★★ 登録成功後、JWTトークンを発行する ★★★
-    
-    # 1. JWTペイロードに保存する情報を定義
-    identity_data = {
-        "user_id": user.id,
-        "user_name": user.name,
-        "role": user.role,
-        "shop_id": user.shop_id # 登録直後は None になるはず
-    }
-    
-    # 2. アクセストークンを生成
+
+    # 1. アクセストークンを生成
     access_token = create_access_token(identity=str(user.id), fresh=True)
 
     # 2. レスポンスオブジェクトを作成
@@ -403,15 +395,7 @@ def login():
         # ユーザーに紐づく店舗名を取得 (user.shopがNoneの場合を安全にチェック)
         shop_name_val = user.shop.name if user.shop else None
         
-        # 1. JWTペイロードに保存する情報を定義
-        identity_data = {
-            "user_id": user.id,
-            "user_name": user.name,
-            "role": user.role,
-            "shop_id": user.shop_id
-        }
-        
-        # 2. アクセストークンを生成
+        # 1. アクセストークンを生成
         access_token = create_access_token(identity=str(user.id), fresh=True)
 
         # 3. レスポンスオブジェクトを作成
@@ -858,18 +842,18 @@ def shop_register():
     if Shop.query.filter_by(name=name).first():
         return jsonify({"error": "店舗名が既に存在します"}), 400
 
-    # 2. 店舗を登録
+    # 2. 店舗を登録（flushでshop.idだけ確定させ、まだコミットしない）
     code = Shop.generate_unique_code()
     shop = Shop(name=name, location=location, shop_code=code)
     db.session.add(shop)
-    db.session.commit() # 店舗のID (shop.id) を確定させる
-    
-    # 3. 管理者ユーザーの情報を更新
-    admin_user = User.query.get(manager_id)
+    db.session.flush()
+
+    # 3. 管理者ユーザーの情報を更新し、店舗作成とまとめて1トランザクションでコミットする
+    #    （分けてcommitすると、後段で例外が起きた際に店舗だけ作成された不整合データが残るため）
     admin_user.shop_id = shop.id
-    db.session.commit() # DBの変更をコミット
-    
-    # 4. 新しいshop_idを含むJWTペイロードを作成し、トークンを再発行する
+    db.session.commit()
+
+    # 4. DB更新後、クッキーにセットするアクセストークンを再発行する
     new_access_token = create_access_token(identity=str(admin_user.id), fresh=True) 
     new_refresh_token = create_refresh_token(identity=str(admin_user.id))
 
