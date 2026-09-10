@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { api } from "../../../lib/api";
+import { api, getErrorMessage } from "../../../lib/api";
 import { useUser } from "../../context/UserContext";
 import Link from "next/link";
 
@@ -35,7 +35,6 @@ export default function ShopDetail() {
 
   // 設定ローディング
   const [configLoading, setConfigLoading] = useState(false);
-  const [configSaved, setConfigSaved] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -105,8 +104,8 @@ export default function ShopDetail() {
       });
       setMessage("店舗情報を更新しました");
       setMessageType("success");
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "更新に失敗しました");
+    } catch (err) {
+      setMessage(getErrorMessage(err, "更新に失敗しました"));
       setMessageType("error");
     }
   };
@@ -114,7 +113,6 @@ export default function ShopDetail() {
   // 営業時間・定員保存
   const handleConfigSave = async () => {
     setConfigLoading(true);
-    setConfigSaved(false);
     try {
       // 既存のprioritiesを取得してマージ
       const cfgRes = await api.get(`/shop/${shopId}/auto_adjust/config`);
@@ -125,11 +123,10 @@ export default function ShopDetail() {
         capacities,
         options: { open_hour: openHour, close_hour: closeHour },
       });
-      setConfigSaved(true);
       setMessage("営業時間・定員設定を保存しました");
       setMessageType("success");
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "設定の保存に失敗しました");
+    } catch (err) {
+      setMessage(getErrorMessage(err, "設定の保存に失敗しました"));
       setMessageType("error");
     } finally {
       setConfigLoading(false);

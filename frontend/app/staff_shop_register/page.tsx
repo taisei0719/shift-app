@@ -3,13 +3,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { api } from "../../lib/api";
+import { api, getErrorMessage } from "../../lib/api";
 import { useUser } from "../context/UserContext";
 
 export default function StaffShopRequest() {
   const [shopCode, setShopCode] = useState("");
   const [message, setMessage] = useState("");
-  const { user, refreshUser } = useUser();
+  const { refreshUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -24,9 +24,8 @@ export default function StaffShopRequest() {
       await refreshUser();
       
     } catch (err) {
-      const error = err as any; 
-      const errorMessage = error.response?.data?.error || "リクエスト送信に失敗しました";
-      console.error(err); 
+      const errorMessage = getErrorMessage(err, "リクエスト送信に失敗しました");
+      console.error(err);
       setMessage(errorMessage);
     }
   };

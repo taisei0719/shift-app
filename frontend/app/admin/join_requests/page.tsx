@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api"; // あなたの axios インスタンスをインポート
+import { api, getErrorMessage } from "@/lib/api"; // あなたの axios インスタンスをインポート
 import { useUser } from "@/app/context/UserContext";
 
 // リクエストデータの型定義
@@ -35,8 +35,8 @@ export default function AdminJoinRequestsPage() {
         try {
             const res = await api.get("/join_requests");
             setRequests(res.data.requests);
-        } catch (err: any) {
-            const errorMessage = err.response?.data?.error || "リクエストの取得に失敗しました。";
+        } catch (err) {
+            const errorMessage = getErrorMessage(err, "リクエストの取得に失敗しました。");
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -68,8 +68,8 @@ export default function AdminJoinRequestsPage() {
             // 処理が成功したら、リストを更新するために再取得
             fetchRequests();
 
-        } catch (err: any) {
-            const errorMessage = err.response?.data?.error || "処理に失敗しました。";
+        } catch (err) {
+            const errorMessage = getErrorMessage(err, "処理に失敗しました。");
             setError(errorMessage);
             setMessage(null);
         }

@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Calendar from "../../components/Calendar"; 
 import { useUser } from "../context/UserContext";
-import { api } from "@/lib/api"; // APIクライアントのインポート
+import { api, getErrorMessage } from "@/lib/api"; // APIクライアントのインポート
 
 // シフト状況の型定義
 interface ShiftStatus {
@@ -58,9 +58,9 @@ export default function AdminCalendarWrapper() {
                 });
             }
             setStatusData(dataMap);
-        } catch (err: any) {
+        } catch (err) {
             console.error("シフト状況取得エラー:", err);
-            setError(err.response?.data?.error || "シフト状況の取得に失敗しました。");
+            setError(getErrorMessage(err, "シフト状況の取得に失敗しました。"));
             setStatusData({}); // 失敗した場合はデータをクリア
         } finally {
             setIsLoading(false);

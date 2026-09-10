@@ -3,7 +3,7 @@
  
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { api } from "../../../../lib/api";
+import { api, getErrorMessage } from "../../../../lib/api";
 import { useUser } from "../../../context/UserContext";
 import Link from "next/link";
  
@@ -47,7 +47,7 @@ export default function AutoAdjustSettingsPage() {
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [priorities, setPriorities] = useState<PrioritiesMap>({});
   const [capacities, setCapacities] = useState<CapacitiesMap>({});
-  const [options, setOptions] = useState<Record<string, any>>({});
+  const [options, setOptions] = useState<Record<string, unknown>>({});
   const [histories, setHistories] = useState<RejectionHistory[]>([]);
  
   const [loading, setLoading] = useState(true);
@@ -114,8 +114,8 @@ export default function AutoAdjustSettingsPage() {
       });
       setMessage("設定を保存しました");
       setMessageType("success");
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "保存に失敗しました");
+    } catch (err) {
+      setMessage(getErrorMessage(err, "保存に失敗しました"));
       setMessageType("error");
     } finally {
       setSaving(false);
@@ -130,8 +130,8 @@ export default function AutoAdjustSettingsPage() {
       setMessage("棄却履歴をリセットしました");
       setMessageType("success");
       await fetchData();
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "リセットに失敗しました");
+    } catch (err) {
+      setMessage(getErrorMessage(err, "リセットに失敗しました"));
       setMessageType("error");
     } finally {
       setResetting(false);

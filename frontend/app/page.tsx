@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, TOKEN_STORAGE_KEY } from "../lib/api";
+import { api, TOKEN_STORAGE_KEY, getErrorMessage } from "../lib/api";
 import { useUser } from "./context/UserContext";
 
 export default function Login() {
@@ -28,8 +28,7 @@ export default function Login() {
       }
       router.push(res.data.user.role === "staff" ? "/staff" : "/admin");
     } catch (err) {
-      const error = err as any;
-      setError(error.response?.data?.error || "ログインに失敗しました");
+      setError(getErrorMessage(err, "ログインに失敗しました"));
     }
   };
 

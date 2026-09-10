@@ -50,7 +50,7 @@ export default function Calendar({ base_path, current_page_path, statusData = {}
         const daysArray: Day[] = [];
 
         // 前月の日付の空欄を埋める (0=日, 1=月, ..., 6=土)
-        let startDayOfWeek = firstDay.getDay();
+        const startDayOfWeek = firstDay.getDay();
         for (let i = 0; i < startDayOfWeek; i++) {
             // month: 0 は前月・次月の空欄として使用
             daysArray.push({ day: "", month: 0, dateStr: "" }); 
