@@ -39,12 +39,14 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 
 ブランチ名に `#` を使わない。`#13-position-capacity` のように issue番号の前に `#` を付けると、GitHub側のPR head追跡が壊れ、pushしても `claude-code-review` の `synchronize` イベントが発火しなくなる不具合を実際に確認した（SBI #13、PR #16 → #17参照）。issue番号は `#` なしでそのまま先頭に置く。
 
-## 4. Claude自動レビュー
+## 4. 自動レビュー
 
-- `.github/workflows/claude-code-review.yml` により、PR作成・更新時に自動でコードレビューコメントが投稿される。
-- 認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。サブスクリプションのレート制限を消費するため、頻繁に上限に達する場合は `ANTHROPIC_API_KEY`（従量課金API）方式への切り替えを検討する。
-- 初期設定はコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
-- 自動レビューとは別に、手動で `/code-review` （高効果度が必要な場合は `ultra`）を実行して深掘りレビューを行ってもよい。
+- **一次レビュー（自動・PRごと）**: GitHub Copilot code reviewを使う。リポジトリのRuleset（`develop`ブランチ向け、`copilot_code_review`ルール）で、PR作成・push毎に自動でレビューされるよう設定済み。GitHub Education（学生特典）で無料利用できる。
+- **深掘りレビュー（手動）**: 以下のいずれかを必要なときだけ実行する。
+  - Claude Codeで `/code-review` （高効果度が必要な場合は `ultra`）を実行する。
+  - `.github/workflows/claude-code-review.yml` をActionsタブから手動実行（`workflow_dispatch`、対象PR番号を入力）する。認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。
+- `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。従量課金の `ANTHROPIC_API_KEY` 方式への切り替えも選択肢としてはあるが、Copilotが無料で使える間はそちらを優先する。
+- どちらのレビューもコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
 
 ## 5. コミットメッセージ規約
 
