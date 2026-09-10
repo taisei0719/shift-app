@@ -1,9 +1,6 @@
 # backend/models.py
 
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
-import secrets 
-import random, string
 from sqlalchemy.dialects.postgresql import JSON
 from datetime import datetime, time
 
@@ -57,7 +54,8 @@ class Shop(db.Model):
     
     @staticmethod
     def generate_unique_code():
-        import random, string
+        import random
+        import string
         while True:
             code = ''.join(random.choices(string.digits, k=6))
             if not Shop.query.filter_by(shop_code=code).first():
