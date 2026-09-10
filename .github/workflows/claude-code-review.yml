@@ -1,6 +1,8 @@
 name: Claude Code Review
 
-# SBIブランチのPR作成・更新をトリガーに、Claudeが自動でコードレビューコメントを投稿する。
+# 一次的な自動PRレビューはGitHub Copilot（Rulesetの `copilot_code_review` ルールでdevelop向けPRに自動設定済み、
+# GitHub Educationで無料）に移行した。このワークフローはClaude Pro/Maxのレート制限を消費するため、
+# 深掘りレビューが必要なときだけ手動で実行する（Actionsタブ > Claude Code Review > Run workflow）。
 #
 # 事前準備（Claude Pro/MaxのOAuthトークンを使う場合）:
 #   1. ローカルで `claude setup-token` を実行し、OAuthトークンを発行する
@@ -13,8 +15,12 @@ name: Claude Code Review
 #   導入時に https://github.com/anthropics/claude-code-action の最新READMEと突き合わせて確認すること。
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "レビュー対象のPR番号"
+        required: true
+        type: number
 
 jobs:
   claude-review:
@@ -27,6 +33,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: refs/pull/${{ inputs.pr_number }}/head
           fetch-depth: 1
 
       - name: Run Claude Code Review

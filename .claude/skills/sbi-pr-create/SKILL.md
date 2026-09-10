@@ -14,7 +14,7 @@ description: push済みのブランチから .github/pull_request_template.md �
    - `Closes #<SBI番号>` / `関連PBI: #<PBI番号>`
    - 変更内容・動作確認内容は実際に行った内容のみを書く
    - DoDチェックリストは実際に確認できた項目だけチェックし、未確認の項目は空欄のまま残す
-5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。`claude-code-review` ワークフローが自動でレビューコメントを投稿する旨も伝える。
+5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。GitHub Copilot code reviewがPR作成・push毎に自動でレビューコメントを投稿する旨も伝える（深掘りが必要なら `/code-review` または `claude-code-review.yml` の手動実行）。
 6. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
 
 ## マージ後フォローアップの実行契約
