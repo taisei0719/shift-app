@@ -191,9 +191,15 @@ pytest
 
 テストはSQLite（一時ファイル）を使い、`DATABASE_URL`等の環境変数は`backend/conftest.py`がテスト実行時に自動設定するため、`.env`の値には影響しない。主要エンドポイント（登録・ログイン・ログアウト・シフト提出・シフト確定）を`backend/tests/`配下でカバーしている。
 
-### frontend
+### frontend（Vitest）
 
-未整備（[SBI #23](https://github.com/taisei0719/shift-app/issues/23)で対応予定）。
+```bash
+cd frontend
+npm install
+npm run test
+```
+
+Vitest + React Testing Libraryで、`Calendar`コンポーネント・`UserContext`（認証セッション取得）・シフト確定ページ（`_ShiftViewClient`）の最低限のテストをカバーしている。テストファイルはテスト対象と同じディレクトリに`*.test.tsx`として配置する。
 
 -----
 
