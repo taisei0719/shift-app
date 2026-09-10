@@ -1,7 +1,8 @@
 name: CI (frontend)
 
 # frontend配下の変更を含むPRの作成・更新をトリガーに、lint・型チェック・テストを自動実行する。
-# 現時点では失敗してもステータスが赤くなるだけでマージはブロックしない（docs/workflow.md 6章参照）。
+# 失敗時はステータスが赤くなる。マージをブロックしないためには、ブランチ保護（Required status checks）で
+# このワークフローを必須に設定しない（docs/workflow.md 6章参照）。
 
 on:
   pull_request:
@@ -9,6 +10,9 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/ci-frontend.yml"
+
+permissions:
+  contents: read
 
 jobs:
   lint:
