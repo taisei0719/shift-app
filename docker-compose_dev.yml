@@ -42,7 +42,7 @@ services:
       - ./frontend:/app
       - /app/node_modules # ホストのnode_modulesが混ざらないように保護
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api
       - HOST=0.0.0.0
       - NODE_ENV=development
     # 起動時にインストールしてdevモードで動かす
