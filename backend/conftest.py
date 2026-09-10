@@ -1,3 +1,4 @@
+import atexit
 import os
 import tempfile
 from datetime import time
@@ -12,6 +13,24 @@ from werkzeug.security import generate_password_hash
 
 from app import app as flask_app
 from models import db as _db, Shop, User
+
+
+def _cleanup_test_db():
+    # SQLAlchemyの接続プールがファイルを掴んだままだとWindowsでunlinkが失敗するため、
+    # 先にengineをdisposeして全接続を閉じてから削除する。
+    try:
+        with flask_app.app_context():
+            _db.engine.dispose()
+    except Exception:
+        pass
+    try:
+        if os.path.exists(_db_path):
+            os.unlink(_db_path)
+    except OSError:
+        pass
+
+
+atexit.register(_cleanup_test_db)
 
 
 @pytest.fixture()
