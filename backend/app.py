@@ -284,8 +284,8 @@ def register():
     }
     
     # 2. アクセストークンを生成
-    access_token = create_access_token(identity=str(user.id)) 
-    
+    access_token = create_access_token(identity=str(user.id), fresh=True)
+
     # 2. レスポンスオブジェクトを作成
     response = jsonify({
         "message": "登録成功",
@@ -412,11 +412,11 @@ def login():
         }
         
         # 2. アクセストークンを生成
-        access_token = create_access_token(identity=str(user.id)) 
+        access_token = create_access_token(identity=str(user.id), fresh=True)
 
         # 3. レスポンスオブジェクトを作成
-        response = jsonify({ 
-            "message": "ログイン成功", 
+        response = jsonify({
+            "message": "ログイン成功",
             "access_token": access_token, # モバイル/Webが保存するトークン
             "user": {
                 "user_name": user.name,
@@ -866,6 +866,7 @@ def shop_register():
     
     # 3. 管理者ユーザーの情報を更新
     admin_user = User.query.get(manager_id)
+    admin_user.shop_id = shop.id
     db.session.commit() # DBの変更をコミット
     
     # 4. 新しいshop_idを含むJWTペイロードを作成し、トークンを再発行する
