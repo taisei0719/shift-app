@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useUser } from "../context/UserContext";
-import { api } from "../../lib/api";
+import { api, getErrorMessage } from "../../lib/api";
 import { useRouter } from "next/navigation";
 
 export default function EditAccount() {
@@ -39,8 +39,8 @@ export default function EditAccount() {
       setUser(null);
       alert("アカウントは正常に削除されました。");
       router.push("/");
-    } catch (err: any) {
-      setMessage(err.response?.data?.error || "アカウントの削除に失敗しました");
+    } catch (err) {
+      setMessage(getErrorMessage(err, "アカウントの削除に失敗しました"));
     }
   };
 

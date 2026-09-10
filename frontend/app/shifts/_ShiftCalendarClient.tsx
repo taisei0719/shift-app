@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import Link from 'next/link';
 
 // -------------------- 型定義 --------------------
@@ -69,7 +69,7 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
     try {
       const res = await api.get(`/shifts/month/${y}/${m}`);
       setShiftsByDate(res.data.shifts_by_date || {});
-    } catch (err: any) {
+    } catch {
       setError('データの取得に失敗しました。');
     } finally {
       setIsLoading(false);
@@ -145,8 +145,8 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
       await fetchShifts(year, month);
       // 提出後は詳細モードに切替
       setPanelMode('detail');
-    } catch (err: any) {
-      setSubmitMessage(`失敗: ${err.response?.data?.error ?? 'サーバーエラー'}`);
+    } catch (err) {
+      setSubmitMessage(`失敗: ${getErrorMessage(err, 'サーバーエラー')}`);
     } finally {
       setSubmitting(false);
     }
@@ -412,10 +412,6 @@ export default function ShiftCalendarClient({ initialYear, initialMonth }: Props
                     const isSelected = selectedDate === dateStr;
                     const isPast = day.getTime() < new Date().setHours(0, 0, 0, 0);
                     const dow = day.getDay();
-                    const shifts = shiftsByDate[dateStr] ?? [];
-                    const hasConfirmed = shifts.some(s => s.shift_type === 'confirmed');
-                    const hasRequest = shifts.some(s => s.shift_type === 'request');
-
                     return (
                       <button
                         key={dateStr}

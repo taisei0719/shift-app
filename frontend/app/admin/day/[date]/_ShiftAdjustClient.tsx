@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { format, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -102,8 +102,8 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
                 }]
             }));
             setStaffData(initialData);
-        } catch (err: any) {
-            setError(err.response?.data?.error || "シフトデータの取得に失敗しました。");
+        } catch (err) {
+            setError(getErrorMessage(err, "シフトデータの取得に失敗しました。"));
             setStaffData([]);
         } finally {
             setLoading(false);
@@ -167,8 +167,8 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
             setAutoMetrics(metrics);
             setShowMetrics(true);
             setMessage("自動調整の提案を表示しました。内容を確認して「シフトを確定する」を押してください。");
-        } catch (err: any) {
-            setError(err.response?.data?.error || "自動調整に失敗しました。");
+        } catch (err) {
+            setError(getErrorMessage(err, "自動調整に失敗しました。"));
         } finally {
             setAutoAdjusting(false);
         }
@@ -202,8 +202,8 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
             setMessage(res.data.message || "シフト確定が完了しました。");
             setAutoMetrics(null);
             fetchShifts();
-        } catch (err: any) {
-            setError(err.response?.data?.error || "シフト確定に失敗しました。");
+        } catch (err) {
+            setError(getErrorMessage(err, "シフト確定に失敗しました。"));
         } finally {
             setLoading(false);
         }

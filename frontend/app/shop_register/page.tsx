@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { api } from "../../lib/api";
+import { api, getErrorMessage } from "../../lib/api";
 import { useRouter } from "next/navigation"; 
 
 export default function ShopRegister() {
@@ -30,8 +30,7 @@ export default function ShopRegister() {
       }
 
     } catch (err) {
-      const error = err as any;
-      setMessage(error.response?.data?.error || "登録に失敗しました");
+      setMessage(getErrorMessage(err, "登録に失敗しました"));
     }
   };
 

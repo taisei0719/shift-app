@@ -2,10 +2,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext';
 import { api } from '@/lib/api';
-import { format, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
+import { format, eachDayOfInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import Link from 'next/link';
 
@@ -39,7 +39,6 @@ const formatDuration = (start: string, end: string) => {
 // -------------------- 内部コンポーネント --------------------
 function MonthlySummaryContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { user, loading: userLoading } = useUser();
 
   const now = new Date();

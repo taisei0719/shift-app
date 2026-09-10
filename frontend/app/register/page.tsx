@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "../../lib/api";
+import { api, getErrorMessage } from "../../lib/api";
 import Link from "next/link";
 
 
@@ -23,8 +23,7 @@ export default function Register() {
       await api.post("/register", { name, email, password, role });
       router.push("/");
     } catch (err) {
-      const error = err as any;
-      setError(error.response?.data?.error || "登録に失敗しました");
+      setError(getErrorMessage(err, "登録に失敗しました"));
     }
   };
 
