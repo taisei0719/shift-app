@@ -1,0 +1,55 @@
+name: SBI (Sprint Backlog Item)
+description: スプリントバックログアイテム。1 SBI = 1ブランチ = 1PRで完結する実装単位。
+title: "[SBI] "
+labels:
+  - "type:sbi"
+body:
+  - type: input
+    id: parent-pbi
+    attributes:
+      label: 親PBI
+      description: 紐づくPBIのissue番号（例: #12）
+      placeholder: "#12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: task
+    attributes:
+      label: タスク内容
+      description: このSBIで何を実装するかを具体的に
+    validations:
+      required: true
+
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      description: このSBIが完了したと判断できる条件を箇条書きで
+      placeholder: |
+        - [ ] 実装完了
+        - [ ] 動作確認済み
+        - [ ] docs/design.md 準拠（UI変更を含む場合）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 見積もり(規模感)
+      options:
+        - XS (〜数時間)
+        - S (半日程度)
+        - M (1日程度)
+        - L (複数日、分割を検討)
+    validations:
+      required: true
+
+  - type: input
+    id: branch-name
+    attributes:
+      label: 想定ブランチ名
+      description: "命名規約: {issue番号}-{概要} （例: 13-position-capacity）"
+      placeholder: "13-position-capacity"
+    validations:
+      required: false

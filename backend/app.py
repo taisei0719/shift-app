@@ -2,13 +2,12 @@
 
 
 import os
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 from models import db, User, Shop, Shift, AutoAdjustConfig, ShiftRejectionHistory
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, timedelta, date, time
-import random, string
+import random
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -113,9 +112,6 @@ def expired_token_callback(jwt_header, jwt_payload):
 
 # 422エラーをキャッチするハンドラを追加
 # JWTのペイロードが要求された形式でないなどの場合に発生しがち
-from flask_jwt_extended.exceptions import NoAuthorizationError
-from werkzeug.exceptions import UnprocessableEntity
-
 # Flask-JWT-Extendedの仕様上、トークンが不正な形式だと422が発生することが多い。
 @app.errorhandler(422)
 def handle_422_error(err):
@@ -150,7 +146,7 @@ def wait_for_db():
                 db.session.execute(text('SELECT 1')) 
                 print("INFO: Database connection successful!")
                 return # 成功したら終了
-            except Exception as e:
+            except Exception:
                 # 失敗したら待機
                 print(f"WARNING: DB not ready yet (attempt {i+1}/10). Waiting 2 seconds...")
                 pytime.sleep(2)
@@ -274,18 +270,10 @@ def register():
     db.session.commit() # ユーザーID (user.id) が確定する
 
     # ★★★ 登録成功後、JWTトークンを発行する ★★★
-    
-    # 1. JWTペイロードに保存する情報を定義
-    identity_data = {
-        "user_id": user.id,
-        "user_name": user.name,
-        "role": user.role,
-        "shop_id": user.shop_id # 登録直後は None になるはず
-    }
-    
-    # 2. アクセストークンを生成
-    access_token = create_access_token(identity=str(user.id)) 
-    
+
+    # 1. アクセストークンを生成
+    access_token = create_access_token(identity=str(user.id), fresh=True)
+
     # 2. レスポンスオブジェクトを作成
     response = jsonify({
         "message": "登録成功",
@@ -385,7 +373,7 @@ def delete_account():
         return response, 200 # または return response
         # responseは既に200 OKのデフォルトステータスを持つため、return response で十分
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({"error": "アカウントの削除中にエラーが発生しました"}), 500
 
@@ -403,20 +391,12 @@ def login():
         # ユーザーに紐づく店舗名を取得 (user.shopがNoneの場合を安全にチェック)
         shop_name_val = user.shop.name if user.shop else None
         
-        # 1. JWTペイロードに保存する情報を定義
-        identity_data = {
-            "user_id": user.id,
-            "user_name": user.name,
-            "role": user.role,
-            "shop_id": user.shop_id
-        }
-        
-        # 2. アクセストークンを生成
-        access_token = create_access_token(identity=str(user.id)) 
+        # 1. アクセストークンを生成
+        access_token = create_access_token(identity=str(user.id), fresh=True)
 
         # 3. レスポンスオブジェクトを作成
-        response = jsonify({ 
-            "message": "ログイン成功", 
+        response = jsonify({
+            "message": "ログイン成功",
             "access_token": access_token, # モバイル/Webが保存するトークン
             "user": {
                 "user_name": user.name,
@@ -562,10 +542,7 @@ def get_monthly_shift_status(year, month):
 
     # 4. 日ごとのシフト状況を集計
     daily_status: dict[str, str] = {}
-    
-    # 全ての従業員（店舗所属者）を取得 (この行は shop_id を使っているので、変更なしで機能する)
-    all_staff_ids = [u.id for u in User.query.filter(User.shop_id == shop_id).all()]
-    
+
     # 対象期間内の全ての日付を生成
     current_day = start_date
     while current_day <= end_date:
@@ -858,17 +835,18 @@ def shop_register():
     if Shop.query.filter_by(name=name).first():
         return jsonify({"error": "店舗名が既に存在します"}), 400
 
-    # 2. 店舗を登録
+    # 2. 店舗を登録（flushでshop.idだけ確定させ、まだコミットしない）
     code = Shop.generate_unique_code()
     shop = Shop(name=name, location=location, shop_code=code)
     db.session.add(shop)
-    db.session.commit() # 店舗のID (shop.id) を確定させる
-    
-    # 3. 管理者ユーザーの情報を更新
-    admin_user = User.query.get(manager_id)
-    db.session.commit() # DBの変更をコミット
-    
-    # 4. 新しいshop_idを含むJWTペイロードを作成し、トークンを再発行する
+    db.session.flush()
+
+    # 3. 管理者ユーザーの情報を更新し、店舗作成とまとめて1トランザクションでコミットする
+    #    （分けてcommitすると、後段で例外が起きた際に店舗だけ作成された不整合データが残るため）
+    admin_user.shop_id = shop.id
+    db.session.commit()
+
+    # 4. DB更新後、クッキーにセットするアクセストークンを再発行する
     new_access_token = create_access_token(identity=str(admin_user.id), fresh=True) 
     new_refresh_token = create_refresh_token(identity=str(admin_user.id))
 
@@ -948,7 +926,7 @@ def get_join_requests():
 
     # 3. その店舗コードでリクエスト中のユーザーを全て検索 (ロジックは変更なし)
     requests = User.query.filter(
-        User.shop_id == None, 
+        User.shop_id.is_(None),
         User.shop_request_code == target_code
     ).all()
     
@@ -1037,9 +1015,6 @@ def get_shop_detail(shop_id):
          # 非常に稀なケース（ユーザーのshop_idがDBから削除された場合など）
         return jsonify({"error": "店舗が見つかりません"}), 404
     
-    # 設定テーブルからデータを取る
-    config = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
-
     # 4. JSONで返す (ロジックは変更なし)
     return jsonify({
         "name": shop.name,

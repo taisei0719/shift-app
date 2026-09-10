@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { format, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
@@ -102,8 +102,8 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
                 }]
             }));
             setStaffData(initialData);
-        } catch (err: any) {
-            setError(err.response?.data?.error || "シフトデータの取得に失敗しました。");
+        } catch (err) {
+            setError(getErrorMessage(err, "シフトデータの取得に失敗しました。"));
             setStaffData([]);
         } finally {
             setLoading(false);
@@ -166,9 +166,9 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
 
             setAutoMetrics(metrics);
             setShowMetrics(true);
-            setMessage("✅ 自動調整の提案を表示しました。内容を確認して「シフトを確定する」を押してください。");
-        } catch (err: any) {
-            setError(err.response?.data?.error || "自動調整に失敗しました。");
+            setMessage("自動調整の提案を表示しました。内容を確認して「シフトを確定する」を押してください。");
+        } catch (err) {
+            setError(getErrorMessage(err, "自動調整に失敗しました。"));
         } finally {
             setAutoAdjusting(false);
         }
@@ -202,8 +202,8 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
             setMessage(res.data.message || "シフト確定が完了しました。");
             setAutoMetrics(null);
             fetchShifts();
-        } catch (err: any) {
-            setError(err.response?.data?.error || "シフト確定に失敗しました。");
+        } catch (err) {
+            setError(getErrorMessage(err, "シフト確定に失敗しました。"));
         } finally {
             setLoading(false);
         }
@@ -270,7 +270,7 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
                 {/* ===== 自動調整ボタンエリア ===== */}
                 <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div>
-                        <p className="text-sm font-semibold text-indigo-800">🤖 シフト自動調整</p>
+                        <p className="text-sm font-semibold text-indigo-800">シフト自動調整</p>
                         <p className="text-xs text-indigo-600 mt-0.5">
                             設定済みの優先度・定員に基づいて、最適なシフトを自動提案します。
                         </p>
@@ -280,7 +280,7 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
                         disabled={autoAdjusting || loading}
                         className="shrink-0 py-2 px-6 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 disabled:bg-gray-400 transition duration-150 shadow-md"
                     >
-                        {autoAdjusting ? "⏳ 計算中..." : "✨ 自動調整を提案"}
+                        {autoAdjusting ? "計算中..." : "自動調整を提案"}
                     </button>
                 </div>
 
@@ -288,7 +288,7 @@ export default function ShiftAdjustClient({ date }: { date: string }) {
                 {showMetrics && autoMetrics && (
                     <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                         <div className="flex items-center justify-between mb-3">
-                            <p className="text-sm font-semibold text-amber-800">📊 自動調整 結果サマリー</p>
+                            <p className="text-sm font-semibold text-amber-800">自動調整 結果サマリー</p>
                             <button
                                 onClick={() => setShowMetrics(false)}
                                 className="text-xs text-amber-600 hover:text-amber-800"

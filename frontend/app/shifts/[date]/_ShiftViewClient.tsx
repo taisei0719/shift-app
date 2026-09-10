@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useUser } from "@/app/context/UserContext"; // 認証・ユーザー情報取得用
 
 // -------------------- 型定義 --------------------
@@ -61,8 +61,8 @@ export default function ShiftViewClient({ date }: { date: string }) {
             // APIは { confirmed_shifts: [...] } の形式を想定
             setShifts(res.data.confirmed_shifts || []);
 
-        } catch (err: any) {
-            const errorMessage = err.response?.data?.error || "確定シフトの取得に失敗しました。";
+        } catch (err) {
+            const errorMessage = getErrorMessage(err, "確定シフトの取得に失敗しました。");
             setError(errorMessage);
             setShifts([]);
         } finally {

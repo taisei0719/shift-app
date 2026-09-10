@@ -1,0 +1,48 @@
+name: Claude Code Review
+
+# 一次的な自動PRレビューはGitHub Copilot（Rulesetの `copilot_code_review` ルールでdevelop向けPRに自動設定済み、
+# GitHub Educationで無料）に移行した。このワークフローはClaude Pro/Maxのレート制限を消費するため、
+# 深掘りレビューが必要なときだけ手動で実行する（Actionsタブ > Claude Code Review > Run workflow）。
+#
+# 事前準備（Claude Pro/MaxのOAuthトークンを使う場合）:
+#   1. ローカルで `claude setup-token` を実行し、OAuthトークンを発行する
+#   2. リポジトリの Settings > Secrets and variables > Actions に
+#      CLAUDE_CODE_OAUTH_TOKEN という名前でそのトークンを登録する（このワークフローからは登録できない）
+#   3. Pro/Maxのレート制限（時間帯/週単位）を消費する点に注意。頻繁に上限に達する場合は
+#      ANTHROPIC_API_KEY（従量課金の通常API）方式に切り替える
+#
+# 注意: anthropics/claude-code-action の入力パラメータはバージョンにより変わりうるため、
+#   導入時に https://github.com/anthropics/claude-code-action の最新READMEと突き合わせて確認すること。
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "レビュー対象のPR番号"
+        required: true
+        type: number
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ inputs.pr_number }}/head
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # PRの差分に対して自動レビューを行い、コメントとして投稿する（マージはブロックしない）
+          direct_prompt: |
+            このPRの差分をレビューしてください。
+            - バグ・不整合の指摘
+            - docs/design.md（UI変更時）・CLAUDE.mdの規約違反
+            - 簡潔なコードレビューコメントとしてPRに投稿

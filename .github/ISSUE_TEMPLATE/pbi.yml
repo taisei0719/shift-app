@@ -1,0 +1,57 @@
+name: PBI (Product Backlog Item)
+description: プロダクトバックログアイテム。ユーザーに価値をもたらす機能単位で起票する。
+title: "[PBI] "
+labels:
+  - "type:pbi"
+body:
+  - type: textarea
+    id: user-story
+    attributes:
+      label: ユーザーストーリー
+      description: "As a (誰が) / I want (何をしたい) / So that (なぜ) の形式で書く"
+      placeholder: |
+        As a 店舗オーナーとして
+        I want ポジション別に定員を設定したい
+        So that キッチン・ホールなど役割ごとの人員過不足を防げる
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 受け入れ条件
+      description: このPBIが完了したと判断できる条件を箇条書きで
+      placeholder: |
+        - [ ] ポジションごとに定員を設定できる
+        - [ ] 自動調整がポジション別定員を考慮する
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足・背景
+      description: ビジネス価値、制約、参考情報など
+    validations:
+      required: false
+
+  - type: textarea
+    id: child-sbi
+    attributes:
+      label: 関連SBI
+      description: スプリントプランニングでSBIに分解したら、ここに子issueをチェックリストで追記していく
+      placeholder: |
+        - [ ] #0 (SBI: ...)
+    validations:
+      required: false
