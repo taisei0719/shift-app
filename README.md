@@ -201,8 +201,6 @@ npm run test
 
 Vitest + React Testing Libraryで、`Calendar`コンポーネント・`UserContext`（認証セッション取得）・シフト確定ページ（`_ShiftViewClient`）の最低限のテストをカバーしている。テストファイルはテスト対象と同じディレクトリに`*.test.tsx`として配置する。
 
-未整備（[SBI #23](https://github.com/taisei0719/shift-app/issues/23)で対応予定）。
-
 -----
 
 ## API エンドポイント一覧
