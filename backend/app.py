@@ -926,7 +926,7 @@ def get_join_requests():
 
     # 3. その店舗コードでリクエスト中のユーザーを全て検索 (ロジックは変更なし)
     requests = User.query.filter(
-        User.shop_id == None,  # noqa: E711 (SQLAlchemyのfilterでIS NULLを表すには`==`が必要。`is`は使えない)
+        User.shop_id.is_(None),
         User.shop_request_code == target_code
     ).all()
     
