@@ -179,6 +179,24 @@ docker compose up -d --build
 
 -----
 
+## テスト
+
+### backend（pytest）
+
+```bash
+cd backend
+pip install -r requirements.txt
+pytest
+```
+
+テストはSQLite（一時ファイル）を使い、`DATABASE_URL`等の環境変数は`backend/conftest.py`がテスト実行時に自動設定するため、`.env`の値には影響しない。主要エンドポイント（登録・ログイン・ログアウト・シフト提出・シフト確定）を`backend/tests/`配下でカバーしている。
+
+### frontend
+
+未整備（[SBI #23](https://github.com/taisei0719/shift-app/issues/23)で対応予定）。
+
+-----
+
 ## API エンドポイント一覧
 
 |メソッド    |エンドポイント                                |説明       |権限    |

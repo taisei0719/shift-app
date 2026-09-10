@@ -16,7 +16,7 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 
 1. **PBI起票**: `[PBI] ` テンプレートでissueを作成し、ユーザーストーリー・受け入れ条件・優先度を書く。
 2. **スプリントプランニング**: PBIをSBIに分解する。分解の壁打ちにClaudeを使ってよい（AIDLCの「Intent capture → Unit-level design」フェーズ）。各SBIは `[SBI] ` テンプレートで起票し、親PBI番号を紐づける。PBI側の「関連SBI」欄にもチェックリストとして追記する。
-3. **ブランチ作成**: 最新化した `develop`（後述7を終えた状態）から、SBI issueに対応する `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。古いブランチのHEADから続けて切ると履歴が枝分かれしたまま進むため避ける。
+3. **ブランチ作成**: 最新化した `develop`（後述7を終えた状態）から、SBI issueに対応する `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。古いブランチのHEADから続けて切ると履歴が枝分かれしたまま進むため避ける。作成したら `git push -u origin <branch>` で即座にリモートにも同名ブランチを作成し、upstreamを設定する（後続のpushで都度 `-u` を付け直さずに済む）。
 4. **実装**: Claude Codeとのペアプロで実装を進める。SBIのDefinition of Doneを満たすまで作業する。
 5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・push毎に、リポジトリのRulesetによりGitHub Copilot code reviewが自動でレビューコメントを投稿する（4章）。
 6. **人間レビュー**: Copilotの自動レビューコメント（必要なら `/code-review` の深掘りレビューも）を確認し、必要な修正を行う。人間のレビュアーが最終承認する。
