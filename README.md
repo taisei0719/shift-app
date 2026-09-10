@@ -185,9 +185,11 @@ docker compose up -d --build
 
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest
 ```
+
+lint（ruff）は `ruff check .` で実行できる。`pytest`・`ruff`は開発専用の`requirements-dev.txt`にのみ含まれ、本番用`requirements.txt`（Dockerイメージのビルドに使用）には含まれない。
 
 テストはSQLite（一時ファイル）を使い、`DATABASE_URL`等の環境変数は`backend/conftest.py`がテスト実行時に自動設定するため、`.env`の値には影響しない。主要エンドポイント（登録・ログイン・ログアウト・シフト提出・シフト確定）を`backend/tests/`配下でカバーしている。
 
