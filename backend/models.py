@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 import secrets 
 import random, string
 from sqlalchemy.dialects.postgresql import JSON
-from datetime import datetime
+from datetime import datetime, time
 
 db = SQLAlchemy() 
 
@@ -52,8 +52,8 @@ class Shop(db.Model):
     name = db.Column(db.String(80), unique=True, nullable=False)
     location = db.Column(db.String(200), nullable=True)
     shop_code = db.Column(db.String(32), unique=True, nullable=False)
-    open_time = db.Column(db.Time, nullable=False, default=db.func.time(9, 0))
-    close_time = db.Column(db.Time, nullable=False, default=db.func.time(22, 0))
+    open_time = db.Column(db.Time, nullable=False, default=time(9, 0))
+    close_time = db.Column(db.Time, nullable=False, default=time(22, 0))
     
     @staticmethod
     def generate_unique_code():
