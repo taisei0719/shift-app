@@ -18,8 +18,8 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 2. **スプリントプランニング**: PBIをSBIに分解する。分解の壁打ちにClaudeを使ってよい（AIDLCの「Intent capture → Unit-level design」フェーズ）。各SBIは `[SBI] ` テンプレートで起票し、親PBI番号を紐づける。PBI側の「関連SBI」欄にもチェックリストとして追記する。
 3. **ブランチ作成**: 最新化した `develop`（後述7を終えた状態）から、SBI issueに対応する `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。古いブランチのHEADから続けて切ると履歴が枝分かれしたまま進むため避ける。
 4. **実装**: Claude Codeとのペアプロで実装を進める。SBIのDefinition of Doneを満たすまで作業する。
-5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・更新をトリガーに `claude-code-review` ワークフローが自動でレビューコメントを投稿する。
-6. **人間レビュー**: Claudeの自動レビューコメントを確認し、必要な修正を行う。人間のレビュアーが最終承認する。
+5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・push毎に、リポジトリのRulesetによりGitHub Copilot code reviewが自動でレビューコメントを投稿する（4章）。
+6. **人間レビュー**: Copilotの自動レビューコメント（必要なら `/code-review` の深掘りレビューも）を確認し、必要な修正を行う。人間のレビュアーが最終承認する。
 7. **マージ後の後始末**: `develop` にマージする（マージ自体はGitHub上で完結する）。マージが確認できたら、必ず以下を行ってから次のSBIに進む。
    - ローカルで `git checkout develop && git pull` し、リモートに追従させる（**ローカルで改めて `git merge` する必要はない**。GitHub側で既にマージ済みのため、pullでfast-forwardするだけでよい）。これを飛ばすとローカルの`develop`だけ取り残され、次のブランチを古い地点から切ってしまう。
    - リモートのSBIブランチはリポジトリ設定 `Automatically delete head branches`（ON済み）によりマージ後に自動削除される。ローカルのSBIブランチは `git branch -d <branch>` で手動削除する。
@@ -41,8 +41,8 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 
 ## 4. 自動レビュー
 
-- **一次レビュー（自動・PRごと）**: GitHub Copilot code reviewを使う。リポジトリのRuleset（`develop`ブランチ向け、`copilot_code_review`ルール）で、PR作成・push毎に自動でレビューされるよう設定済み。GitHub Education（学生特典）で無料利用できる。
-- **深掘りレビュー（手動）**: 以下のいずれかを必要なときだけ実行する。
+- **一次レビュー（自動・PR作成時の1回のみ）**: GitHub Copilot code reviewを使う。リポジトリのRuleset（`develop`ブランチ向け、`copilot_code_review`ルール）で、PR作成時に自動でレビューされるよう設定済み。GitHub Education（学生特典）のCopilot Studentプランで利用でき、月200 AI Creditsの枠内で動く（1レビューあたり約13クレジット消費するため、`review_on_push`はOFFにしてpush毎の再レビューを止めている。無条件に誰でも使えるわけではなく、GitHub Educationの学生認定が前提）。
+- **再レビュー・深掘りレビュー（手動）**: 修正後にもう一度Copilotレビューが欲しい場合はPRの「Reviewers」からCopilotを手動リクエストする。より深いレビューが欲しい場合は以下のいずれかを使う。
   - Claude Codeで `/code-review` （高効果度が必要な場合は `ultra`）を実行する。
   - `.github/workflows/claude-code-review.yml` をActionsタブから手動実行（`workflow_dispatch`、対象PR番号を入力）する。認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。
 - `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。従量課金の `ANTHROPIC_API_KEY` 方式への切り替えも選択肢としてはあるが、Copilotが無料で使える間はそちらを優先する。
@@ -67,8 +67,8 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
   - PRの作成が必須（レビュー承認自体は必須にしていない。現状は開発者1名のため、承認必須にすると自分のPRをマージできなくなるのを避けるための判断）
   - force push禁止・ブランチ削除禁止
   - `enforce_admins` はOFF（管理者はブランチ保護をバイパス可能。緊急時のセルフマージ用の逃げ道として維持する）
-- **マージ権限**: 現状の開発者（リポジトリ管理者）が、main/developへのマージを単独で承認・実行する。Claude自動レビュー（`claude-code-review`）のコメントを確認したうえでマージする運用とする。
-- ステータスチェックの必須化はまだ行っていない。`claude-code-review` はコメント投稿のみでマージをブロックしない設計（4章）と一致させるため。チェックが安定して走ることを確認できたら、必須化を再検討する。
+- **マージ権限**: 現状の開発者（リポジトリ管理者）が、main/developへのマージを単独で承認・実行する。Copilot自動レビュー（必要なら手動の深掘りレビューも）のコメントを確認したうえでマージする運用とする。
+- ステータスチェックの必須化はまだ行っていない。自動レビューはコメント投稿のみでマージをブロックしない設計（4章）と一致させるため。チェックが安定して走ることを確認できたら、必須化を再検討する。
 - 開発者が増えた場合は、承認必須（`required_approving_review_count` を1以上）に切り替えることを検討する。
 
 ## 7. Definition of Done（共通）
@@ -77,4 +77,4 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 - [ ] 実機/ローカル環境で動作確認済み
 - [ ] UI変更を含む場合、[docs/design.md](design.md) に準拠している
 - [ ] テキストに絵文字を使用していない
-- [ ] Claude自動レビューのコメントを確認済み
+- [ ] 自動レビュー（Copilot、必要なら手動の深掘りレビューも）のコメントを確認済み
