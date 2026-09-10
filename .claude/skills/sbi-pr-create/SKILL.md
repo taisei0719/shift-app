@@ -15,7 +15,10 @@ description: push済みのブランチから .github/pull_request_template.md �
    - 変更内容・動作確認内容は実際に行った内容のみを書く
    - DoDチェックリストは実際に確認できた項目だけチェックし、未確認の項目は空欄のまま残す
 5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。GitHub Copilot code reviewがPR作成・push毎に自動でレビューコメントを投稿する旨も伝える（深掘りが必要なら `/code-review` または `claude-code-review.yml` の手動実行）。
-6. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
+6. PR作成直後に、今月のCopilot AI Credits消費量を確認して報告する:
+   `gh api "users/$(gh api user -q .login)/settings/billing/usage?year=<現在の年>&month=<現在の月>" -q '[.usageItems[] | select(.product=="copilot" and .sku=="Copilot AI Credits")] | (map(.quantity) | add) // 0'`
+   月200クレジットが上限（Copilot Studentプラン、additional usageはdisabled）。消費量が上限に近い（目安: 8割=160クレジット超）場合は、Copilot自動レビューが今月中に止まる可能性がある旨をユーザーに伝える。
+7. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
 
 ## マージ後フォローアップの実行契約
 
