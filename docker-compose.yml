@@ -35,6 +35,11 @@ services:
     build:
       context: ./frontend # ビルドコンテキストを指定
       dockerfile: Dockerfile # Dockerfile名も指定しとくと明確
+      args:
+        # NEXT_PUBLIC_*はnext build時に静的に埋め込まれるため、buildのargsとして渡す必要がある
+        # （environmentだけだとビルド後のランタイムにしか効かず、ブラウザ向けバンドルには反映されない）
+        # ブラウザから直接叩くURLなので、コンテナ内のサービス名(backend)ではなくlocalhostを指定する
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:5000/api
     container_name: shift_app_frontend
     ports:
       - "3000:3000"
@@ -42,7 +47,7 @@ services:
       #- ./frontend:/app
       #- /app/node_modules # node_modulesはコンテナ内でインストールしたものを使うように除外
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://backend:5000 
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api
       - HOST=0.0.0.0
     depends_on:
       - backend # バックエンドが起動してからフロントエンドを起動
