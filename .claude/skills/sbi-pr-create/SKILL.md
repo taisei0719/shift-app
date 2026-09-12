@@ -16,13 +16,14 @@ description: push済みのブランチから .github/pull_request_template.md �
    - DoDチェックリストは実際に確認できた項目だけチェックし、未確認の項目は空欄のまま残す
 5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。CodeRabbitがPR作成・更新時に自動でレビューコメントを投稿する旨も伝える（深掘りが必要なら `/code-review`、Copilotの手動リクエスト、または `claude-code-review.yml` の手動実行）。
 6. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
+   - `/loop` などの自律実行中は、PRリンクを添えて `#bestshift-dev`（channel_id: `C0C1B1BHULW`）にマージ承認依頼をSlack送信する（`docs/workflow.md` 8章）。CodeRabbitのレビューが未完了/レート制限中の場合は、レビューを確認できてから送信する。
    - Copilotを手動でリクエストした場合のみ、今月のAI Credits消費量を確認して報告する:
      `gh api -H "X-GitHub-Api-Version: 2026-03-10" "users/$(gh api user -q .login)/settings/billing/ai_credit/usage?year=<現在の年>&month=<現在の月>" -q '[.usageItems[] | select(.sku=="Copilot AI Credits") | .grossQuantity] | add // 0'`
      現状確認できているCopilot Studentプランの月間上限は200（GitHub公式ドキュメントで固定値として明記されているわけではないため、実際の上限はGitHubの設定画面で都度確認するのが確実）。8割（目安160）を超えたら今月中に自動レビューが止まる可能性がある旨を伝える。
 
 ## マージ後フォローアップの実行契約
 
-ユーザーから「マージした」と報告されたら、`gh pr view <PR番号> --json state,mergedAt` でマージ済みを確認したうえで、以下を行う（[docs/workflow.md](../../../docs/workflow.md) 2章7参照）。
+ユーザーから「マージした」と報告されたら（チャット、または `#bestshift-dev` でのSlack返信のいずれでも可）、`gh pr view <PR番号> --json state,mergedAt` でマージ済みを確認したうえで、以下を行う（[docs/workflow.md](../../../docs/workflow.md) 2章7参照）。
 
 1. `git checkout develop && git pull` でローカルの `develop` をリモートに追従させる（GitHub側で既にマージ済みのため、ローカルで改めて `git merge` する必要はない。pullでfast-forwardするだけでよい）。
 2. `Closes #` はデフォルトブランチ（`main`）へのマージでしか自動発火しないため、`develop` へのマージではSBI issueは自動クローズされない。`gh issue close <SBI番号>` で手動クローズする。
