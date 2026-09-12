@@ -17,8 +17,8 @@ description: push済みのブランチから .github/pull_request_template.md �
 5. `gh pr create --base develop --title "..." --body "..."` で作成し、URLを報告する。CodeRabbitがPR作成・更新時に自動でレビューコメントを投稿する旨も伝える（深掘りが必要なら `/code-review`、Copilotの手動リクエスト、または `claude-code-review.yml` の手動実行）。
 6. PR作成で止まる。マージは行わない（マージはユーザー自身、または明示の指示があるときのみ）。
    - Copilotを手動でリクエストした場合のみ、今月のAI Credits消費量を確認して報告する:
-     `gh api "users/$(gh api user -q .login)/settings/billing/usage?year=<現在の年>&month=<現在の月>" -q '[.usageItems[] | select(.product=="copilot" and .sku=="Copilot AI Credits")] | (map(.quantity) | add) // 0'`
-     月200クレジットが上限（Copilot Studentプラン、additional usageはdisabled）。8割（160クレジット）を超えたら今月中に止まる可能性がある旨を伝える。
+     `gh api -H "X-GitHub-Api-Version: 2026-03-10" "users/$(gh api user -q .login)/settings/billing/ai_credit/usage?year=<現在の年>&month=<現在の月>" -q '[.usageItems[] | select(.sku=="Copilot AI Credits") | .grossQuantity] | add // 0'`
+     現状確認できているCopilot Studentプランの月間上限は200（GitHub公式ドキュメントで固定値として明記されているわけではないため、実際の上限はGitHubの設定画面で都度確認するのが確実）。8割（目安160）を超えたら今月中に自動レビューが止まる可能性がある旨を伝える。
 
 ## マージ後フォローアップの実行契約
 
