@@ -41,12 +41,13 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 
 ## 4. 自動レビュー
 
-- **一次レビュー（自動・PR作成時の1回のみ）**: GitHub Copilot code reviewを使う。リポジトリのRuleset（`develop`ブランチ向け、`copilot_code_review`ルール）で、PR作成時に自動でレビューされるよう設定済み。GitHub Education（学生特典）のCopilot Studentプランで利用でき、月200 AI Creditsの枠内で動く（1レビューあたり約13クレジット消費するため、`review_on_push`はOFFにしてpush毎の再レビューを止めている。無条件に誰でも使えるわけではなく、GitHub Educationの学生認定が前提）。
-- **再レビュー・深掘りレビュー（手動）**: 修正後にもう一度Copilotレビューが欲しい場合はPRの「Reviewers」からCopilotを手動リクエストする。より深いレビューが欲しい場合は以下のいずれかを使う。
+- **一次レビュー（自動・PRごと）**: [CodeRabbit](https://coderabbit.ai)を使う。GitHub Appとして`shift-app`（public repo）に導入済みで、PR作成・更新時に自動でレビューコメントが付く。publicリポジトリはPro相当の機能が無期限無料（レート制限は200ファイル/時・4PR/時程度と余裕がある）。
+- **GitHub Copilot code review**: 自動トリガーのRulesetは無効化済み（設定自体は残してあり再有効化も可能）。必要な時だけPRの「Reviewers」から手動リクエストする（GitHub Education Copilot Studentプラン、月200 AI Creditsの枠内で消費）。
+- **深掘りレビュー（手動）**: より深いレビューが欲しい場合は以下のいずれかを使う。
   - Claude Codeで `/code-review` （高効果度が必要な場合は `ultra`）を実行する。
   - `.github/workflows/claude-code-review.yml` をActionsタブから手動実行（`workflow_dispatch`、対象PR番号を入力）する。認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。
-- `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。従量課金の `ANTHROPIC_API_KEY` 方式への切り替えも選択肢としてはあるが、Copilotが無料で使える間はそちらを優先する。
-- どちらのレビューもコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
+- `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。その後、一次自動レビューはCopilot→CodeRabbitに切り替えた（publicリポジトリで無期限無料かつレート制限が緩いため）。
+- いずれのレビューもコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
 
 ## 5. コミットメッセージ規約
 
