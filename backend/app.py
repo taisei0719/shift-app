@@ -15,13 +15,19 @@ import time as pytime
 import math
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
 from flask_jwt_extended import create_refresh_token, set_refresh_cookies
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv()
 
 app = Flask(__name__)
 
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("環境変数 SECRET_KEY が設定されていません。")
+
 # JWTの設定
-app.config["JWT_SECRET_KEY"] = os.getenv("SECRET_KEY", "super-secret-jwt-key") # 秘密鍵を設定
+app.config["JWT_SECRET_KEY"] = SECRET_KEY # 秘密鍵を設定
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"] 
 app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
 app.config["JWT_COOKIE_SECURE"] = True # HTTPSでのみクッキーを送信 (本番環境向けではTrue、開発中はFalse)
@@ -33,6 +39,8 @@ app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
 app.config["JWT_COOKIE_CSRF_PROTECT"] = False
 
 jwt = JWTManager(app)
+
+limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
 
 #app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
@@ -246,6 +254,7 @@ def manual_init_db():
 
 # -------------------- API: ユーザー登録 --------------------
 @app.route("/api/register", methods=["POST"])
+@limiter.limit("10 per minute")
 def register():
     data = request.json
     name = data.get("name")
@@ -379,6 +388,7 @@ def delete_account():
 
 # -------------------- API: ログイン (JWT対応版) --------------------
 @app.route("/api/login", methods=["POST"])
+@limiter.limit("10 per minute")
 def login():
     data = request.json
     identifier = data.get("identifier")
