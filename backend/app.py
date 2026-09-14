@@ -23,7 +23,9 @@ load_dotenv()
 
 SENTRY_DSN = os.getenv("SENTRY_DSN")
 if SENTRY_DSN:
-    sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=True)
+    # send_default_pii はスタッフの個人情報（IP・リクエストヘッダー等）を外部のSentryへ送ることになるため、
+    # 明示的なデータ取り扱いポリシーが無い現状では無効のままにする
+    sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=False)
 
 app = Flask(__name__)
 

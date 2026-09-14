@@ -20,6 +20,10 @@ DSNの値自体は秘匿情報ではない（クライアントに露出する�
 - backend: `backend/.env`（ローカル）、Render本番環境変数
 - frontend: `docker-compose_dev.yml` / `docker-compose.yml`（ローカル）、Vercel本番環境変数
 
+## 個人情報の扱い
+
+backendの`sentry_sdk.init()`は`send_default_pii=False`にしている。デフォルトの`True`だとスタッフのIPアドレスやリクエストヘッダー等が外部のSentryへ送られてしまうため、明示的なデータ取り扱いポリシーが無い現状では無効化している（CodeRabbitの指摘を受けて対応）。
+
 ## テストでSentryが動かない理由
 
 `backend/conftest.py`で`SENTRY_DSN`を空文字に固定している。pytest実行のたびに実際のSentryプロジェクトへテスト由来のイベントが飛ぶのを防ぐため（`load_dotenv()`は既存の環境変数を上書きしないため、`os.environ.pop`ではなく空文字での固定が必要）。
