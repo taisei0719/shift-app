@@ -697,8 +697,8 @@ def confirm_shifts():
         ).all()
         for shift in shifts_to_delete:
             db.session.delete(shift)
-        db.session.commit()
- 
+        db.session.flush()  # commit()にするとロックが解放されてしまうため、flush()で反映のみ行う
+
         # 新しい確定シフトを追加
         new_confirmed_shifts = []
         accepted_user_ids = set()
@@ -1442,13 +1442,21 @@ def admin_auto_adjust(date_str):
 
     apply_flag = bool(request.json.get('apply', False)) if request.json else False
 
+    if apply_flag:
+        # 割当計算の元になるデータ取得より前にロックを取得し、
+        # 「読み取り→計算→書き込み」の一連の処理全体を他リクエストと排他にする
+        try:
+            _acquire_shop_shift_lock(user.shop_id)
+        except ShiftLockConflict:
+            return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
+
     # 取得: その日の全ての request シフト
     request_shifts = Shift.query.filter(
         Shift.shop_id == user.shop_id,
         Shift.shift_date == target_date,
         Shift.shift_type == 'request'
     ).all()
-    
+
     # 設定を取得
     cfg = AutoAdjustConfig.query.filter_by(shop_id=user.shop_id).first()
     priorities = cfg.priorities if cfg else {}
@@ -1457,11 +1465,6 @@ def admin_auto_adjust(date_str):
     assignments, metrics = compute_auto_assignments(request_shifts, priorities, capacities)
 
     if apply_flag:
-        try:
-            _acquire_shop_shift_lock(user.shop_id)
-        except ShiftLockConflict:
-            return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
-
         # DB更新: 指定ユーザーに対する既存シフトを削除して確定を追加する
         try:
             # 削除対象ユーザーID一覧
