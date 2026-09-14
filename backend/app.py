@@ -85,7 +85,7 @@ CORS(
     # resourcesを使う形式を維持し、originsにリストを渡す
     resources={r"/api/*": {"origins": final_origins}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"]
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"]
 )
 
 # -------------------- JWTエラーハンドリング --------------------
