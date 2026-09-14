@@ -183,3 +183,21 @@ def test_update_user_position_rejects_too_long_position(client, make_shop, make_
     )
 
     assert res.status_code == 400
+
+
+def test_update_user_position_rejects_reserved_unspecified_value(client, make_shop, make_user, auth_header):
+    """UNSPECIFIED_POSITION（"unspecified"）は予約語のため、実際のposition名として設定できない。"""
+    shop = make_shop()
+    make_user(email="posadmin7@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="posstaff7@example.com", password="password123", role="staff", shop=shop)
+    staff_id = staff.id
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin7@example.com", "password123")
+
+    res = client.patch(
+        f"/api/shops/{shop_id}/users/{staff_id}/position",
+        headers=admin_headers,
+        json={"position": "unspecified"},
+    )
+
+    assert res.status_code == 400

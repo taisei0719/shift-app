@@ -1202,6 +1202,10 @@ def update_user_position(shop_id, target_user_id):
         position = position or None  # 空文字は未設定(None)として扱う
         if position and len(position) > 50:
             return jsonify({"error": "positionは50文字以内で指定してください"}), 400
+        # UNSPECIFIED_POSITIONは自動調整の「position未設定」バケットの予約語のため、
+        # 実際のposition名として使われるとNoneのシフトと定員が混同されてしまう
+        if position == UNSPECIFIED_POSITION:
+            return jsonify({"error": f'"{UNSPECIFIED_POSITION}"は予約語のためpositionに指定できません'}), 400
 
     target_user.position = position
     db.session.commit()
