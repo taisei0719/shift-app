@@ -13,7 +13,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-32-bytes-minimum
 import pytest  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
-from app import app as flask_app  # noqa: E402
+from app import app as flask_app, limiter as _limiter  # noqa: E402
 from models import db as _db, Shop, User  # noqa: E402
 
 
@@ -38,6 +38,7 @@ atexit.register(_cleanup_test_db)
 @pytest.fixture()
 def app():
     flask_app.config.update(TESTING=True)
+    _limiter.reset()
     with flask_app.app_context():
         _db.create_all()
         yield flask_app
