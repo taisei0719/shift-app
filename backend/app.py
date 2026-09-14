@@ -701,8 +701,12 @@ def confirm_shifts():
         db.session.flush()  # commit()にするとロックが解放されてしまうため、flush()で反映のみ行う
 
         # 新しい確定シフトを追加（現時点でのUser.positionをスナップショットする）
+        # 他店舗のユーザーのpositionが紛れ込まないよう、shop_idでスコープする
         users_by_id = {
-            u.id: u for u in User.query.filter(User.id.in_(target_user_ids)).all()
+            u.id: u for u in User.query.filter(
+                User.id.in_(target_user_ids),
+                User.shop_id == shop_id,
+            ).all()
         }
         new_confirmed_shifts = []
         accepted_user_ids = set()
@@ -1187,9 +1191,18 @@ def update_user_position(shop_id, target_user_id):
     if not target_user or target_user.shop_id != shop_id:
         return jsonify({"error": "対象の従業員が見つかりません"}), 404
 
-    data = request.json or {}
-    # 空文字/未指定はposition未設定(None)として扱う
-    position = data.get("position") or None
+    data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエストボディが不正です"}), 400
+
+    position = data.get("position")
+    if position is not None:
+        if not isinstance(position, str):
+            return jsonify({"error": "positionは文字列で指定してください"}), 400
+        position = position or None  # 空文字は未設定(None)として扱う
+        if position and len(position) > 50:
+            return jsonify({"error": "positionは50文字以内で指定してください"}), 400
+
     target_user.position = position
     db.session.commit()
 
@@ -1294,6 +1307,20 @@ def update_rejection_histories(shop_id: int, date, request_shifts, accepted_user
 UNSPECIFIED_POSITION = "unspecified"
 
 
+def _normalize_capacities_map(capacities_map):
+    """
+    capacities_mapを新形式（ポジション別 {"<position>": {"<hour>": int}}）に正規化する。
+    フロントエンド未対応期間（SBI #66未マージ時点）は旧形式のフラットな
+    {"<hour>": int} がそのまま送られてくるため、値がdictでなければ
+    UNSPECIFIED_POSITIONバケットの定員として扱う。
+    """
+    if not capacities_map:
+        return {}
+    if any(not isinstance(v, dict) for v in capacities_map.values()):
+        return {UNSPECIFIED_POSITION: capacities_map}
+    return capacities_map
+
+
 # -------------------- 自動調整ロジック本体 --------------------
 def compute_auto_assignments(request_shifts, priorities_map, capacities_map, shop_id=None):
     """
@@ -1318,6 +1345,7 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
     # --- 定員マップの準備（ポジション別） ---
     # capacities_map: {"<position>": {"<hour>": int}}。positionが空文字列("")のシフトはUNSPECIFIED_POSITIONバケットで扱う。
     # 対象positionのcapacitiesが未設定の場合は全時間帯上限なし（後方互換）。
+    capacities_map = _normalize_capacities_map(capacities_map)
     position_caps = {}
 
     def _get_position_caps(position_key):
