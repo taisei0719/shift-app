@@ -340,6 +340,22 @@ def test_auto_adjust_config_rejects_literal_null_body(client, make_shop, make_us
     assert res.status_code == 400
 
 
+def test_auto_adjust_config_rejects_colliding_normalized_hour_keys(client, make_shop, make_user, auth_header):
+    """"1"と"01"はint()正規化後に衝突するため、_get_position_capsでの黙った上書きを防ぐために拒否する。"""
+    shop = make_shop()
+    make_user(email="posadmin18@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin18@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": {"1": 2, "01": 5}}},
+    )
+
+    assert res.status_code == 400
+
+
 def test_auto_adjust_config_rejects_boolean_capacity_value(client, make_shop, make_user, auth_header):
     """boolはintのサブクラスのため、int()に暗黙変換されて定員として保存されないよう拒否する。"""
     shop = make_shop()

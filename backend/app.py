@@ -1339,9 +1339,11 @@ def _normalize_capacities_map(capacities_map):
 
 def _is_valid_hour_capacity_dict(hour_caps):
     """{"<hour>": int} 形式（0〜23の整数キー・0以上の整数値）かどうかを検証する。
-    bool は int のサブクラスのため明示的に除外し、小数値もint()での暗黙切り捨てを許さず拒否する。"""
+    bool は int のサブクラスのため明示的に除外し、小数値もint()での暗黙切り捨てを許さず拒否する。
+    "1"と"01"のように正規化後に衝突するキーも、_get_position_capsでの黙った上書きを防ぐため拒否する。"""
     if not isinstance(hour_caps, dict):
         return False
+    seen_hours = set()
     for hour_key, cap_value in hour_caps.items():
         if isinstance(cap_value, bool) or not isinstance(cap_value, int):
             return False
@@ -1349,6 +1351,9 @@ def _is_valid_hour_capacity_dict(hour_caps):
             hour = int(hour_key)
         except (TypeError, ValueError):
             return False
+        if hour in seen_hours:
+            return False
+        seen_hours.add(hour)
         if not (0 <= hour <= 23) or cap_value < 0:
             return False
     return True
