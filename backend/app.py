@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, date, time
 import random
 from dotenv import load_dotenv
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
 import time as pytime
 import math
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
@@ -667,7 +667,12 @@ def confirm_shifts():
     
     if not confirmed_shifts_data:
         return jsonify({"error": "確定シフトデータがありません"}), 400
-        
+
+    try:
+        _acquire_shop_shift_lock(shop_id)
+    except ShiftLockConflict:
+        return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
+
     try:
         date_str = confirmed_shifts_data[0]['shift_date']
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -1159,7 +1164,37 @@ def get_shop_users(shop_id):
         "users": user_list
     }), 200
 
-# -------------------- 自動調整ロジック補助関数 --------------------     
+# -------------------- シフト確定・自動調整の排他制御 --------------------
+class ShiftLockConflict(Exception):
+    """店舗単位のシフト確定/自動調整ロックが既に他のリクエストに保持されている場合に送出する。"""
+    pass
+
+
+def _acquire_shop_shift_lock(shop_id: int) -> None:
+    """
+    店舗単位でシフト確定・自動調整処理を直列化するため、AutoAdjustConfigの該当店舗行を
+    SELECT ... FOR UPDATE NOWAIT でロックする。他のリクエストが既にロックを保持している場合は
+    ShiftLockConflict を送出する（呼び出し側でrollbackのうえ409を返す想定）。
+    行が存在しない店舗の場合は先に作成してからロックを取得する。
+    """
+    cfg = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
+    if cfg is None:
+        cfg = AutoAdjustConfig(shop_id=shop_id, priorities={}, capacities={})
+        db.session.add(cfg)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            # 並行して他のリクエストが同時に作成した場合は、それを使う
+            db.session.rollback()
+
+    try:
+        AutoAdjustConfig.query.filter_by(shop_id=shop_id).with_for_update(nowait=True).one()
+    except OperationalError as e:
+        db.session.rollback()
+        raise ShiftLockConflict() from e
+
+
+# -------------------- 自動調整ロジック補助関数 --------------------
 def _parse_hour_float(t):
     # t: datetime.time -> float hour (e.g. 9:30 -> 9.5)
     return t.hour + t.minute / 60.0
@@ -1422,6 +1457,11 @@ def admin_auto_adjust(date_str):
     assignments, metrics = compute_auto_assignments(request_shifts, priorities, capacities)
 
     if apply_flag:
+        try:
+            _acquire_shop_shift_lock(user.shop_id)
+        except ShiftLockConflict:
+            return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
+
         # DB更新: 指定ユーザーに対する既存シフトを削除して確定を追加する
         try:
             # 削除対象ユーザーID一覧
