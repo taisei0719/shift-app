@@ -31,12 +31,11 @@ app.config["JWT_SECRET_KEY"] = SECRET_KEY # 秘密鍵を設定
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "cookies"] 
 app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
 app.config["JWT_COOKIE_SECURE"] = True # HTTPSでのみクッキーを送信 (本番環境向けではTrue、開発中はFalse)
-app.config["JWT_COOKIE_SAMESITE"] = "None" # CSRF対策のためLaxまたはStrict
+app.config["JWT_COOKIE_SAMESITE"] = "None" # frontend(Vercel)とbackend(Render)がクロスオリジンのため必須。CSRF対策は下記のCSRFトークン検証で行う
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) # トークンの有効期限
 app.config["JWT_ACCESS_COOKIE_PATH"] = "/"
 
-# CSRF保護を一時的に無効化する設定
-app.config["JWT_COOKIE_CSRF_PROTECT"] = False
+app.config["JWT_COOKIE_CSRF_PROTECT"] = True
 
 jwt = JWTManager(app)
 
@@ -86,7 +85,7 @@ CORS(
     # resourcesを使う形式を維持し、originsにリストを渡す
     resources={r"/api/*": {"origins": final_origins}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"]
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"]
 )
 
 # -------------------- JWTエラーハンドリング --------------------
