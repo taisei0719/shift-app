@@ -323,6 +323,23 @@ def test_auto_adjust_config_rejects_non_object_request_body(client, make_shop, m
     assert res.status_code == 400
 
 
+def test_auto_adjust_config_rejects_literal_null_body(client, make_shop, make_user, auth_header):
+    """JSONのnullリテラルは黙って空設定として保存せず400で拒否する。"""
+    shop = make_shop()
+    make_user(email="posadmin17@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin17@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        data="null",
+        content_type="application/json",
+    )
+
+    assert res.status_code == 400
+
+
 def test_auto_adjust_config_rejects_boolean_capacity_value(client, make_shop, make_user, auth_header):
     """boolはintのサブクラスのため、int()に暗黙変換されて定員として保存されないよう拒否する。"""
     shop = make_shop()

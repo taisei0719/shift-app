@@ -1526,9 +1526,9 @@ def shop_auto_adjust_config(shop_id):
         return jsonify({"config": {"priorities": cfg.priorities or {}, "capacities": cfg.capacities or {}, "options": cfg.options or {}}}), 200
 
     # POST: 保存
+    # ボディなし・JSON null・非オブジェクトはいずれもrequest.jsonがNoneまたは非dictになるため、
+    # 空設定として黙って保存せず一律400で拒否する
     data = request.json
-    if data is None:
-        data = {}
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     priorities = data.get("priorities", {})
