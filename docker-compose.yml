@@ -40,6 +40,7 @@ services:
         # （environmentだけだとビルド後のランタイムにしか効かず、ブラウザ向けバンドルには反映されない）
         # ブラウザから直接叩くURLなので、コンテナ内のサービス名(backend)ではなくlocalhostを指定する
         NEXT_PUBLIC_API_BASE_URL: http://localhost:5000/api
+        NEXT_PUBLIC_SENTRY_DSN: https://242129b5ad5d3f98e3c3dca24808420f@o4512084062633984.ingest.us.sentry.io/4512084072529920
     container_name: shift_app_frontend
     ports:
       - "3000:3000"
@@ -48,6 +49,7 @@ services:
       #- /app/node_modules # node_modulesはコンテナ内でインストールしたものを使うように除外
     environment:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api
+      - NEXT_PUBLIC_SENTRY_DSN=https://242129b5ad5d3f98e3c3dca24808420f@o4512084062633984.ingest.us.sentry.io/4512084072529920
       - HOST=0.0.0.0
     depends_on:
       - backend # バックエンドが起動してからフロントエンドを起動

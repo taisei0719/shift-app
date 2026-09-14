@@ -7,6 +7,7 @@ _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.close(_db_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-32-bytes-minimum")
+os.environ["SENTRY_DSN"] = ""  # テスト実行が実際のSentryプロジェクトにイベントを送らないようにする（load_dotenv()は既存の変数を上書きしないため、popではなく空文字で固定する）
 
 # NOTE: 上でDATABASE_URL等の環境変数を設定した後にimportする必要があるため、
 # 以下のimportをファイル先頭に移動することはできない（意図的なE402違反）。
