@@ -500,14 +500,15 @@ def submit_shift_request():
         except ValueError:
              continue
         
-        # Shiftモデルにデータを格納
+        # Shiftモデルにデータを格納（提出時点のUser.positionをスナップショットする）
         new_shift = Shift(
             user_id=user_id,
             shop_id=shop_id,
             shift_date=target_date,
             start_time=start_time_obj,
             end_time=end_time_obj,
-            shift_type='request' # 希望として登録
+            shift_type='request', # 希望として登録
+            position=user.position,
         )
         db.session.add(new_shift)
         new_request_count += 1
@@ -699,23 +700,28 @@ def confirm_shifts():
             db.session.delete(shift)
         db.session.flush()  # commit()にするとロックが解放されてしまうため、flush()で反映のみ行う
 
-        # 新しい確定シフトを追加
+        # 新しい確定シフトを追加（現時点でのUser.positionをスナップショットする）
+        users_by_id = {
+            u.id: u for u in User.query.filter(User.id.in_(target_user_ids)).all()
+        }
         new_confirmed_shifts = []
         accepted_user_ids = set()
- 
+
         for shift_data in confirmed_shifts_data:
             if 'user_id' not in shift_data or 'start_time' not in shift_data or 'end_time' not in shift_data:
                 continue
-             
+
             start_time_obj = datetime.strptime(shift_data['start_time'], '%H:%M').time()
             end_time_obj = datetime.strptime(shift_data['end_time'], '%H:%M').time()
-            
+            target_user = users_by_id.get(shift_data['user_id'])
+
             new_shift = Shift(
                 user_id=shift_data['user_id'],
                 shop_id=shop_id,
                 shift_date=target_date,
                 start_time=start_time_obj,
                 end_time=end_time_obj,
+                position=target_user.position if target_user else None,
                 shift_type='confirmed'
             )
             db.session.add(new_shift)
@@ -1144,6 +1150,7 @@ def get_shop_users(shop_id):
             "user_id": user.id,
             "user_name": user.name,
             "role": user.role,
+            "position": user.position,
             "is_owner": user.role == 'admin' # 'owner'がDBになければ'admin'で判断
         })
 
@@ -1163,6 +1170,30 @@ def get_shop_users(shop_id):
         "shop": shop_info,
         "users": user_list
     }), 200
+
+# -------------------- API: 従業員のポジション更新 (Admin専用) --------------------
+@app.route("/api/shops/<int:shop_id>/users/<int:target_user_id>/position", methods=["PATCH"])
+@jwt_required()
+def update_user_position(shop_id, target_user_id):
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+    if user.role != 'admin' or user.shop_id != shop_id:
+        return jsonify({"error": "権限がありません"}), 403
+
+    target_user = db.session.get(User, target_user_id)
+    if not target_user or target_user.shop_id != shop_id:
+        return jsonify({"error": "対象の従業員が見つかりません"}), 404
+
+    data = request.json or {}
+    # 空文字/未指定はposition未設定(None)として扱う
+    position = data.get("position") or None
+    target_user.position = position
+    db.session.commit()
+
+    return jsonify({"user_id": target_user.id, "position": target_user.position}), 200
 
 # -------------------- シフト確定・自動調整の排他制御 --------------------
 class ShiftLockConflict(Exception):
@@ -1259,6 +1290,10 @@ def update_rejection_histories(shop_id: int, date, request_shifts, accepted_user
             history.total_accepted += 1
         # updated_at は onupdate で自動更新される
 
+# positionが設定されていないシフトの定員チェックに使うバケットキー
+UNSPECIFIED_POSITION = "unspecified"
+
+
 # -------------------- 自動調整ロジック本体 --------------------
 def compute_auto_assignments(request_shifts, priorities_map, capacities_map, shop_id=None):
     """
@@ -1269,21 +1304,31 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
     Args:
         request_shifts: Shiftオブジェクトのリスト (shift_type=='request')
         priorities_map: {str(user_id): priority_int}
-        capacities_map: {"0": int, ..., "23": int} 各時間帯の定員
+        capacities_map: {"<position>": {"0": int, ..., "23": int}} ポジション別・各時間帯の定員。
+            positionが設定されていないシフトはUNSPECIFIED_POSITIONバケットで扱う。
         shop_id: 棄却履歴を参照するための店舗ID (Noneの場合は履歴を使わない)
- 
+
     Returns:
-        assignments: [{"user_id": int, "start_time": str, "end_time": str}, ...]
+        assignments: [{"user_id": int, "start_time": str, "end_time": str, "position": str|None}, ...]
         metrics: {
             "users": {user_id: {"accepted": int, "total": int, "rate": float}},
             "overall": {"accepted": int, "total": int, "rate": float}
         }
     """
-    # --- 定員マップの準備 ---
-    caps = {int(k): int(v) for k, v in (capacities_map or {}).items()}
-    for h in range(24):
-        caps.setdefault(h, 9999)  # 未設定時間帯は上限なし
- 
+    # --- 定員マップの準備（ポジション別） ---
+    # capacities_map: {"<position>": {"<hour>": int}}。positionが空文字列("")のシフトはUNSPECIFIED_POSITIONバケットで扱う。
+    # 対象positionのcapacitiesが未設定の場合は全時間帯上限なし（後方互換）。
+    position_caps = {}
+
+    def _get_position_caps(position_key):
+        if position_key not in position_caps:
+            raw = (capacities_map or {}).get(position_key, {}) or {}
+            caps = {int(k): int(v) for k, v in raw.items()}
+            for h in range(24):
+                caps.setdefault(h, 9999)  # 未設定時間帯は上限なし
+            position_caps[position_key] = caps
+        return position_caps[position_key]
+
     # --- 棄却履歴の取得 ---
     # shop_idがある場合のみDBから引く（シミュレーション時も参照する）
     rejection_rate_map = {}  # {user_id: float}
@@ -1315,6 +1360,7 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
             "priority": priority,
             "rejection_rate": rejection_rate,  # 棄却率 (高いほど優先)
             "rand": random.random(),            # 同率時のタイブレーク
+            "position": s.position or UNSPECIFIED_POSITION,
             "shift": s,
         })
  
@@ -1336,13 +1382,14 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
     for r in reqs:
         uid = r['user_id']
         total_count[uid] = total_count.get(uid, 0) + 1
- 
+
         # シフトがカバーする時間帯スロット (開始時刻の整数部〜終了時刻の切り上げ-1)
         hours = list(range(int(r['start_f']), math.ceil(r['end_f'])))
- 
-        # 全時間帯で定員に空きがあるか確認
+        caps = _get_position_caps(r['position'])
+
+        # 全時間帯でそのpositionの定員に空きがあるか確認
         can_assign = all(caps.get(h, 0) > 0 for h in hours)
- 
+
         if can_assign:
             # 定員を消費
             for h in hours:
@@ -1351,6 +1398,7 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
                 "user_id": uid,
                 "start_time": r['shift'].start_time.strftime('%H:%M'),
                 "end_time": r['shift'].end_time.strftime('%H:%M'),
+                "position": r['shift'].position,
             })
             accepted_count[uid] = accepted_count.get(uid, 0) + 1
  
@@ -1486,6 +1534,7 @@ def admin_auto_adjust(date_str):
                     shift_date=target_date,
                     start_time=st,
                     end_time=et,
+                    position=a.get('position'),
                     shift_type='confirmed'
                 )
                 db.session.add(new_shift)
