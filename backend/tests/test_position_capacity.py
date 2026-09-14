@@ -307,6 +307,54 @@ def test_auto_adjust_config_accepts_valid_legacy_flat_capacities(client, make_sh
     assert res.status_code == 200
 
 
+def test_auto_adjust_config_rejects_non_object_request_body(client, make_shop, make_user, auth_header):
+    """JSON配列などオブジェクト以外のボディはdata.get()呼び出し前に400で弾く。"""
+    shop = make_shop()
+    make_user(email="posadmin14@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin14@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json=[1, 2, 3],
+    )
+
+    assert res.status_code == 400
+
+
+def test_auto_adjust_config_rejects_boolean_capacity_value(client, make_shop, make_user, auth_header):
+    """boolはintのサブクラスのため、int()に暗黙変換されて定員として保存されないよう拒否する。"""
+    shop = make_shop()
+    make_user(email="posadmin15@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin15@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": {"10": True}}},
+    )
+
+    assert res.status_code == 400
+
+
+def test_auto_adjust_config_rejects_fractional_capacity_value(client, make_shop, make_user, auth_header):
+    """小数値はint()による暗黙の切り捨てを許さず拒否する。"""
+    shop = make_shop()
+    make_user(email="posadmin16@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin16@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": {"10": 3.7}}},
+    )
+
+    assert res.status_code == 400
+
+
 def test_update_user_position_rejects_reserved_unspecified_value(client, make_shop, make_user, auth_header):
     """UNSPECIFIED_POSITION（"unspecified"）は予約語のため、実際のposition名として設定できない。"""
     shop = make_shop()
