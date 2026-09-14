@@ -42,6 +42,8 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 ## 4. 自動レビュー
 
 - **一次レビュー（自動・PRごと）**: [CodeRabbit](https://coderabbit.ai)を使う。GitHub Appとして`shift-app`（public repo）に導入済みで、`.coderabbit.yaml`の設定で`develop`向けPRも含めPR作成・更新時に自動でレビューコメントが付く。publicリポジトリは無料のOSSプランが使えるが、**無制限ではなくレート制限がある**（実際に短時間で連続pushした際「Review limit reached, next included review available in 33 minutes」という制限に到達したことを確認済み）。制限に達した場合は待つか、下記の手動レビューで代替する。正確な条件は[公式プランページ](https://docs.coderabbit.ai/management/plans#rate-limits)を参照。
+  - CodeRabbitは「PR作成」「（自動レビューが有効な間の）pushのたび」「`@coderabbitai review`の明示実行」それぞれを1回のレビューとしてカウントする。OSSプランのPRレビュー制限は開発者単位かつリポジトリ単位でスコープされ、リポジトリのスター数に応じて1〜10回/時間と少なく、修正→再push を繰り返す開発スタイルだとすぐ枯渇する。
+  - これを緩和するため、`.coderabbit.yaml`で`auto_pause_after_reviewed_commits: 1`を設定している。初回のレビューが付いた後は自動レビューが一時停止し、以降の修正pushはレビューとしてカウントされない。マージ前に最終確認したい時だけPRコメントで`@coderabbitai review`（差分のみ）または`@coderabbitai full review`（全体）を実行して手動トリガーする。
 - **GitHub Copilot code review**: 自動トリガーのRulesetは無効化済み（設定自体は残してあり再有効化も可能）。必要な時だけPRの「Reviewers」から手動リクエストする（GitHub Education Copilot Studentプラン、月200 AI Creditsの枠内で消費）。
 - **深掘りレビュー（手動）**: より深いレビューが欲しい場合は以下のいずれかを使う。
   - Claude Codeで `/code-review` （高効果度が必要な場合は `ultra`）を実行する。
