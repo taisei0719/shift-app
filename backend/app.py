@@ -17,8 +17,15 @@ from flask_jwt_extended import create_access_token, JWTManager, jwt_required, ge
 from flask_jwt_extended import create_refresh_token, set_refresh_cookies
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import sentry_sdk
 
 load_dotenv()
+
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    # send_default_pii はスタッフの個人情報（IP・リクエストヘッダー等）を外部のSentryへ送ることになるため、
+    # 明示的なデータ取り扱いポリシーが無い現状では無効のままにする
+    sentry_sdk.init(dsn=SENTRY_DSN, send_default_pii=False)
 
 app = Flask(__name__)
 
