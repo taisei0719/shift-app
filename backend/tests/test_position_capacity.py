@@ -185,6 +185,128 @@ def test_update_user_position_rejects_too_long_position(client, make_shop, make_
     assert res.status_code == 400
 
 
+def test_confirm_shifts_preserves_request_position_over_current(client, make_shop, make_user, auth_header):
+    """定員チェックはリクエスト提出時点のpositionを基準に行われるため、
+    確定時にユーザーのpositionが変わっていても確定シフトはリクエスト時点のpositionを引き継ぐ。"""
+    shop = make_shop()
+    make_user(email="posadmin8@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="posstaff8@example.com", password="password123", role="staff", shop=shop, position="hall")
+    staff_id = staff.id
+    shop_id = shop.id
+    staff_headers = auth_header("posstaff8@example.com", "password123")
+    admin_headers = auth_header("posadmin8@example.com", "password123")
+
+    client.post(
+        "/api/shifts/submit_request",
+        headers=staff_headers,
+        json={"requests": [{"date": "2026-10-01", "start": "09:00", "end": "17:00"}]},
+    )
+
+    # リクエスト提出後にpositionが変更されるケース
+    client.patch(
+        f"/api/shops/{shop_id}/users/{staff_id}/position",
+        headers=admin_headers,
+        json={"position": "kitchen"},
+    )
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=admin_headers,
+        json={
+            "confirmed_shifts": [
+                {"user_id": staff_id, "shift_date": "2026-10-01", "start_time": "09:00", "end_time": "17:00"}
+            ]
+        },
+    )
+    assert res.status_code == 200
+
+    shift = Shift.query.filter_by(shift_type="confirmed", user_id=staff_id).first()
+    assert shift.position == "hall"
+
+
+def test_confirm_shifts_falls_back_to_current_position_without_request(client, make_shop, make_user, auth_header):
+    """対応するリクエストがない（管理者が手動でシフトを追加した）場合は、現時点のpositionを使う。"""
+    shop = make_shop()
+    make_user(email="posadmin9@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="posstaff9@example.com", password="password123", role="staff", shop=shop, position="hall")
+    staff_id = staff.id
+    admin_headers = auth_header("posadmin9@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=admin_headers,
+        json={
+            "confirmed_shifts": [
+                {"user_id": staff_id, "shift_date": "2026-10-01", "start_time": "09:00", "end_time": "17:00"}
+            ]
+        },
+    )
+    assert res.status_code == 200
+
+    shift = Shift.query.filter_by(shift_type="confirmed", user_id=staff_id).first()
+    assert shift.position == "hall"
+
+
+def test_auto_adjust_config_rejects_invalid_capacities(client, make_shop, make_user, auth_header):
+    shop = make_shop()
+    make_user(email="posadmin10@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin10@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": "not-a-dict"}},
+    )
+
+    assert res.status_code == 400
+
+
+def test_auto_adjust_config_rejects_non_integer_capacity_values(client, make_shop, make_user, auth_header):
+    shop = make_shop()
+    make_user(email="posadmin11@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin11@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": {"10": "abc"}}},
+    )
+
+    assert res.status_code == 400
+
+
+def test_auto_adjust_config_accepts_valid_position_capacities(client, make_shop, make_user, auth_header):
+    shop = make_shop()
+    make_user(email="posadmin12@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin12@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"kitchen": {"10": 2}, "hall": {"11": 3}}},
+    )
+
+    assert res.status_code == 200
+
+
+def test_auto_adjust_config_accepts_valid_legacy_flat_capacities(client, make_shop, make_user, auth_header):
+    shop = make_shop()
+    make_user(email="posadmin13@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin13@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        json={"priorities": {}, "capacities": {"10": 2, "11": 3}},
+    )
+
+    assert res.status_code == 200
+
+
 def test_update_user_position_rejects_reserved_unspecified_value(client, make_shop, make_user, auth_header):
     """UNSPECIFIED_POSITION（"unspecified"）は予約語のため、実際のposition名として設定できない。"""
     shop = make_shop()

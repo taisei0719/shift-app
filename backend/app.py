@@ -694,13 +694,18 @@ def confirm_shifts():
         shifts_to_delete = Shift.query.filter(
             Shift.shop_id == shop_id,
             Shift.shift_date == target_date,
-            Shift.user_id.in_(target_user_ids) 
+            Shift.user_id.in_(target_user_ids)
         ).all()
+        # 自動調整の定員チェックはリクエスト提出時点のpositionを基準に行われているため、
+        # 確定シフトのpositionもリクエスト時点のものを優先して引き継ぐ（削除前に退避しておく）
+        request_position_by_user = {
+            s.user_id: s.position for s in shifts_to_delete if s.shift_type == 'request'
+        }
         for shift in shifts_to_delete:
             db.session.delete(shift)
         db.session.flush()  # commit()にするとロックが解放されてしまうため、flush()で反映のみ行う
 
-        # 新しい確定シフトを追加（現時点でのUser.positionをスナップショットする）
+        # 新しい確定シフトを追加
         # 他店舗のユーザーのpositionが紛れ込まないよう、shop_idでスコープする
         users_by_id = {
             u.id: u for u in User.query.filter(
@@ -719,13 +724,20 @@ def confirm_shifts():
             end_time_obj = datetime.strptime(shift_data['end_time'], '%H:%M').time()
             target_user = users_by_id.get(shift_data['user_id'])
 
+            # 対応するリクエストがあればそのpositionを引き継ぎ（定員チェックとの整合性を保つ）、
+            # なければ現時点でのUser.positionをスナップショットする
+            if shift_data['user_id'] in request_position_by_user:
+                position = request_position_by_user[shift_data['user_id']]
+            else:
+                position = target_user.position if target_user else None
+
             new_shift = Shift(
                 user_id=shift_data['user_id'],
                 shop_id=shop_id,
                 shift_date=target_date,
                 start_time=start_time_obj,
                 end_time=end_time_obj,
-                position=target_user.position if target_user else None,
+                position=position,
                 shift_type='confirmed'
             )
             db.session.add(new_shift)
@@ -1325,6 +1337,40 @@ def _normalize_capacities_map(capacities_map):
     return capacities_map
 
 
+def _is_valid_hour_capacity_dict(hour_caps):
+    """{"<hour>": int} 形式（0〜23の整数キー・0以上の整数値）かどうかを検証する。"""
+    if not isinstance(hour_caps, dict):
+        return False
+    for hour_key, cap_value in hour_caps.items():
+        try:
+            hour = int(hour_key)
+            cap = int(cap_value)
+        except (TypeError, ValueError):
+            return False
+        if not (0 <= hour <= 23) or cap < 0:
+            return False
+    return True
+
+
+def _is_valid_capacities_map(capacities_map):
+    """
+    保存前のcapacitiesの形式検証。旧形式（フラット {"<hour>": int}）・
+    新形式（ポジション別 {"<position>": {"<hour>": int}}）のいずれかであることを確認する。
+    _normalize_capacities_mapは値の一部でもdict以外ならフラット扱いにするため、
+    形式が混在したデータ（int()変換に失敗しcompute_auto_assignmentsが500になる）を弾く。
+    """
+    if not isinstance(capacities_map, dict):
+        return False
+    if not capacities_map:
+        return True
+    values_are_dicts = [isinstance(v, dict) for v in capacities_map.values()]
+    if any(values_are_dicts) and not all(values_are_dicts):
+        return False
+    if all(values_are_dicts):
+        return all(_is_valid_hour_capacity_dict(v) for v in capacities_map.values())
+    return _is_valid_hour_capacity_dict(capacities_map)
+
+
 # -------------------- 自動調整ロジック本体 --------------------
 def compute_auto_assignments(request_shifts, priorities_map, capacities_map, shop_id=None):
     """
@@ -1482,7 +1528,10 @@ def shop_auto_adjust_config(shop_id):
     priorities = data.get("priorities", {})
     capacities = data.get("capacities", {})
     options = data.get("options", {})
-    
+
+    if not _is_valid_capacities_map(capacities):
+        return jsonify({"error": "capacitiesの形式が不正です"}), 400
+
     try:
         cfg = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
         if not cfg:
