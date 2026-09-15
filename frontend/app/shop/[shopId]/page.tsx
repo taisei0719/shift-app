@@ -13,8 +13,32 @@ interface ShopData {
   shop_code: string;
 }
 
-// 時間帯定員の型 { "9": 3, "10": 5, ... }
-type CapacitiesMap = Record<string, number>;
+interface StaffUser {
+  user_id: number;
+  position: string | null;
+}
+
+// 時間帯別定員の型 { "9": 3, "10": 5, ... }
+type HourCapacityMap = Record<string, number>;
+// ポジション別・時間帯別定員の型 { "kitchen": { "9": 3, ... }, "unspecified": { ... } }
+type CapacitiesMap = Record<string, HourCapacityMap>;
+
+// positionが設定されていないスタッフの定員を表すバケットキー（backendの予約語と一致させる）
+const UNSPECIFIED_POSITION = "unspecified";
+const UNSPECIFIED_POSITION_LABEL = "未設定";
+
+// backendから取得したcapacitiesを新形式（ポジション別）に正規化する。
+// 旧形式のフラットな { "<hour>": int } はUNSPECIFIED_POSITIONバケットとして扱う（backendの正規化ロジックと同じ）。
+function normalizeCapacities(raw: Record<string, unknown> | null | undefined): CapacitiesMap {
+  if (!raw || Object.keys(raw).length === 0) return {};
+  const isPositionMap = Object.values(raw).every(
+    (v) => typeof v === "object" && v !== null && !Array.isArray(v)
+  );
+  if (isPositionMap) {
+    return raw as CapacitiesMap;
+  }
+  return { [UNSPECIFIED_POSITION]: raw as HourCapacityMap };
+}
 
 export default function ShopDetail() {
   const router = useRouter();
@@ -30,8 +54,12 @@ export default function ShopDetail() {
   const [openHour, setOpenHour] = useState(9);
   const [closeHour, setCloseHour] = useState(22);
 
-  // 時間帯別定員
+  // ポジション別・時間帯別定員
   const [capacities, setCapacities] = useState<CapacitiesMap>({});
+  // 定員設定タブで選択中のポジション（未設定 = UNSPECIFIED_POSITION）
+  const [selectedPosition, setSelectedPosition] = useState<string>(UNSPECIFIED_POSITION);
+  // スタッフに設定されている既存ポジションの一覧（タブ表示用）
+  const [staffPositions, setStaffPositions] = useState<string[]>([]);
 
   // 設定ローディング
   const [configLoading, setConfigLoading] = useState(false);
@@ -50,43 +78,72 @@ export default function ShopDetail() {
       .catch(() => setShop(null));
   }, [shopId]);
 
-  // 自動調整設定の取得
+  // 自動調整設定・スタッフのポジション一覧を取得
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
-    api
-      .get(`/shop/${shopId}/auto_adjust/config`)
-      .then((res) => {
-        const cfg = res.data.config;
-        const caps: CapacitiesMap = cfg.capacities || {};
+    Promise.all([
+      api.get(`/shop/${shopId}/auto_adjust/config`),
+      api.get(`/shops/${shopId}/users`),
+    ])
+      .then(([cfgRes, usersRes]) => {
+        const cfg = cfgRes.data.config;
+        const caps = normalizeCapacities(cfg.capacities);
         setCapacities(caps);
-        // 営業時間をcapacitiesから推定（定員>0の最小・最大時間）
-        const hours = Object.keys(caps)
-          .map(Number)
-          .filter((h) => caps[String(h)] > 0);
+
+        // 営業時間を全ポジションのcapacitiesから推定（定員>0の最小・最大時間）
+        const hours = Object.values(caps).flatMap((posCaps) =>
+          Object.keys(posCaps)
+            .map(Number)
+            .filter((h) => posCaps[String(h)] > 0)
+        );
         if (hours.length > 0) {
           setOpenHour(Math.min(...hours));
           setCloseHour(Math.max(...hours) + 1);
         }
+
+        // スタッフに設定済みのポジション一覧（タブ表示用、重複除去）
+        const users: StaffUser[] = usersRes.data.users || [];
+        const positions = Array.from(
+          new Set(users.map((u) => u.position).filter((p): p is string => !!p))
+        );
+        setStaffPositions(positions);
       })
       .catch(() => {});
   }, [shopId, isAdmin]);
 
-  // 営業時間が変わったら定員をリセット（範囲外の時間帯を削除）
+  // 営業時間が変わったら全ポジションの定員をリセット（範囲外の時間帯を削除）
   useEffect(() => {
     setCapacities((prev) => {
       const next: CapacitiesMap = {};
-      for (let h = openHour; h < closeHour; h++) {
-        next[String(h)] = prev[String(h)] ?? 0;
+      for (const pos of Object.keys(prev)) {
+        const prevPosCaps = prev[pos] || {};
+        const nextPosCaps: HourCapacityMap = {};
+        for (let h = openHour; h < closeHour; h++) {
+          nextPosCaps[String(h)] = prevPosCaps[String(h)] ?? 0;
+        }
+        next[pos] = nextPosCaps;
       }
       return next;
     });
   }, [openHour, closeHour]);
 
-  // 定員変更ハンドラ
+  // 定員変更ハンドラ（選択中のポジションの定員を更新）
   const handleCapacityChange = (hour: number, value: string) => {
     const num = Math.max(0, parseInt(value) || 0);
-    setCapacities((prev) => ({ ...prev, [String(hour)]: num }));
+    setCapacities((prev) => ({
+      ...prev,
+      [selectedPosition]: {
+        ...(prev[selectedPosition] || {}),
+        [String(hour)]: num,
+      },
+    }));
   };
+
+  // タブ（ポジション）一覧: 未設定 + スタッフに設定済みのポジション
+  const positionTabs = [UNSPECIFIED_POSITION, ...staffPositions];
+  const selectedPositionLabel =
+    selectedPosition === UNSPECIFIED_POSITION ? UNSPECIFIED_POSITION_LABEL : selectedPosition;
+  const currentCapacities: HourCapacityMap = capacities[selectedPosition] || {};
 
   // 店舗情報更新
   const handleShopSubmit = async (e: React.FormEvent) => {
@@ -302,10 +359,36 @@ export default function ShopDetail() {
               </div>
             </div>
 
+            {/* ポジション別タブ */}
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">ポジション</p>
+              <div className="flex flex-wrap gap-2">
+                {positionTabs.map((pos) => (
+                  <button
+                    key={pos}
+                    onClick={() => setSelectedPosition(pos)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                      selectedPosition === pos
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {pos === UNSPECIFIED_POSITION ? UNSPECIFIED_POSITION_LABEL : pos}
+                  </button>
+                ))}
+              </div>
+              {staffPositions.length === 0 && (
+                <p className="text-xs text-gray-400 mt-2">
+                  スタッフにポジションを設定すると、ポジションごとに定員を分けて設定できます。
+                  （<Link href={`/shop/${shopId}/users`} className="text-indigo-500 hover:text-indigo-700">従業員一覧</Link>で設定）
+                </p>
+              )}
+            </div>
+
             {/* 時間帯別定員グリッド */}
             <div className="mb-6">
               <p className="text-sm font-medium text-gray-700 mb-3">
-                時間帯別 必要スタッフ数
+                {selectedPositionLabel} の時間帯別 必要スタッフ数
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {hourRange.map((h) => (
@@ -320,7 +403,7 @@ export default function ShopDetail() {
                       type="number"
                       min={0}
                       max={99}
-                      value={capacities[String(h)] ?? 0}
+                      value={currentCapacities[String(h)] ?? 0}
                       onChange={(e) =>
                         handleCapacityChange(h, e.target.value)
                       }
