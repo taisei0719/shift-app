@@ -12,7 +12,7 @@ from flask_jwt_extended import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from extensions import limiter
-from models import db, User, Shift
+from models import db, User, Shift, ShiftRejectionHistory
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -137,6 +137,11 @@ def delete_account():
         # 3. 関連データの削除
         # ユーザーに紐づく全ての Shift を削除
         Shift.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
+
+        # ユーザーに紐づく棄却履歴を削除
+        # （PostgreSQLは外部キー制約をデフォルトで強制するため、削除しないと
+        #   db.session.delete(user)が制約違反で失敗しアカウント削除ができなくなる）
+        ShiftRejectionHistory.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
 
         # 4. ユーザーアカウント本体の削除
         db.session.delete(user)
