@@ -17,6 +17,7 @@ backend/
     rejection_history.py # 棄却履歴の閲覧・リセット関連エンドポイント
     auth.py               # 登録・ログイン・ログアウト・セッション・アカウント編集/削除
     shops.py               # 店舗登録・参加リクエスト・店舗詳細・従業員一覧・ポジション更新
+    shifts.py              # シフト希望提出・確定・取得（submit_request, admin/shifts系, 月次取得等）
   tests/                 # pytest。テストファイルは概ねドメイン単位で対応させる
 ```
 
@@ -26,4 +27,4 @@ backend/
 - 複数ドメインから使われる共有ロジックは`services/`に置き、`blueprints/`側からimportして使う。
 - app.pyとBlueprintの両方が参照するFlask拡張（Limiter等）は`extensions.py`に置き、循環importを避ける。
 - 分割はエンドポイントのURL・振る舞いを変えない後方互換リファクタとして行う。
-- 現在切り出し済み: `rejection_history`ドメイン（#72）、`auth`ドメイン（#73）、`shops`ドメイン（#74）。今後 `shifts`（#75）、`auto_adjust`（#76）の順で切り出し予定（詳細は各SBI issue参照）。
+- 現在切り出し済み: `rejection_history`ドメイン（#72）、`auth`ドメイン（#73）、`shops`ドメイン（#74）、`shifts`ドメイン（#75）。今後 `auto_adjust`（#76）の切り出し予定（詳細はSBI issue参照）。
