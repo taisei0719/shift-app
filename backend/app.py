@@ -19,6 +19,9 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import sentry_sdk
 
+from services.shift_lock import ShiftLockConflict, acquire_shop_shift_lock
+from services.rejection_history import get_current_year_month, get_or_create_history
+
 load_dotenv()
 
 SENTRY_DSN = os.getenv("SENTRY_DSN")
@@ -94,6 +97,12 @@ CORS(
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN"]
 )
+
+# -------------------- Blueprint登録 --------------------
+# ドメインごとに切り出したBlueprintをここに追加していく（PBI #40）
+from blueprints.rejection_history import rejection_history_bp  # noqa: E402
+
+app.register_blueprint(rejection_history_bp)
 
 # -------------------- JWTエラーハンドリング --------------------
 # トークンがない、または不正な場合のカスタムレスポンスを設定
@@ -670,7 +679,7 @@ def confirm_shifts():
         return jsonify({"error": "確定シフトデータがありません"}), 400
 
     try:
-        _acquire_shop_shift_lock(shop_id)
+        acquire_shop_shift_lock(shop_id)
     except ShiftLockConflict:
         return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
 
@@ -747,7 +756,7 @@ def confirm_shifts():
         # ★ 棄却履歴の更新
         # リクエストを提出していた全ユーザーに対してカウントを更新
         for uid in all_requesting_user_ids:
-            history = _get_or_create_history(uid, shop_id)
+            history = get_or_create_history(uid, shop_id)
             history.total_requests += 1
             if uid in accepted_user_ids:
                 history.total_accepted += 1
@@ -1224,100 +1233,13 @@ def update_user_position(shop_id, target_user_id):
 
     return jsonify({"user_id": target_user.id, "position": target_user.position}), 200
 
-# -------------------- シフト確定・自動調整の排他制御 --------------------
-class ShiftLockConflict(Exception):
-    """店舗単位のシフト確定/自動調整ロックが既に他のリクエストに保持されている場合に送出する。"""
-    pass
-
-
-def _acquire_shop_shift_lock(shop_id: int) -> None:
-    """
-    店舗単位でシフト確定・自動調整処理を直列化するため、AutoAdjustConfigの該当店舗行を
-    SELECT ... FOR UPDATE NOWAIT でロックする。他のリクエストが既にロックを保持している場合は
-    ShiftLockConflict を送出する（呼び出し側でrollbackのうえ409を返す想定）。
-    行が存在しない店舗の場合は先に作成してからロックを取得する。
-    """
-    cfg = AutoAdjustConfig.query.filter_by(shop_id=shop_id).first()
-    if cfg is None:
-        cfg = AutoAdjustConfig(shop_id=shop_id, priorities={}, capacities={})
-        db.session.add(cfg)
-        try:
-            db.session.commit()
-        except IntegrityError:
-            # 並行して他のリクエストが同時に作成した場合は、それを使う
-            db.session.rollback()
-
-    try:
-        AutoAdjustConfig.query.filter_by(shop_id=shop_id).with_for_update(nowait=True).one()
-    except OperationalError as e:
-        db.session.rollback()
-        raise ShiftLockConflict() from e
-
-
 # -------------------- 自動調整ロジック補助関数 --------------------
+# シフト確定・自動調整の排他制御（ShiftLockConflict, acquire_shop_shift_lock）は
+# services/shift_lock.py に、棄却履歴関連（get_current_year_month, get_or_create_history）は
+# services/rejection_history.py に切り出し済み（PBI #40）
 def _parse_hour_float(t):
     # t: datetime.time -> float hour (e.g. 9:30 -> 9.5)
     return t.hour + t.minute / 60.0
-
-def _get_current_year_month():
-    """現在の年月を 'YYYY-MM' 形式で返す"""
-    return datetime.now().strftime('%Y-%m')
- 
- 
-def _get_or_create_history(user_id: int, shop_id: int) -> ShiftRejectionHistory:
-    """
-    (user_id, shop_id) に対応する履歴レコードを取得または新規作成する。
-    reset_mode='monthly' の場合、月が変わっていれば自動リセットする。
-    """
-    history = ShiftRejectionHistory.query.filter_by(
-        user_id=user_id,
-        shop_id=shop_id
-    ).first()
- 
-    if not history:
-        # 初回: 新規作成
-        history = ShiftRejectionHistory(
-            user_id=user_id,
-            shop_id=shop_id,
-            total_requests=0,
-            total_accepted=0,
-            reset_mode='manual',
-            last_reset_year_month=_get_current_year_month()
-        )
-        db.session.add(history)
-        return history
- 
-    # 月次リセットチェック
-    if history.reset_mode == 'monthly':
-        current_ym = _get_current_year_month()
-        if history.last_reset_year_month != current_ym:
-            # 月が変わっていたらリセット
-            history.total_requests = 0
-            history.total_accepted = 0
-            history.last_reset_year_month = current_ym
- 
-    return history
- 
- 
-def update_rejection_histories(shop_id: int, date, request_shifts, accepted_user_ids: set):
-    """
-    シフト確定時に棄却履歴を更新する。
- 
-    Args:
-        shop_id: 対象店舗ID
-        date: 対象日付
-        request_shifts: その日の全リクエストシフトのリスト
-        accepted_user_ids: 採用されたユーザーIDのset
-    """
-    # その日に希望を提出したユーザーIDを収集
-    requesting_user_ids = {s.user_id for s in request_shifts}
- 
-    for user_id in requesting_user_ids:
-        history = _get_or_create_history(user_id, shop_id)
-        history.total_requests += 1
-        if user_id in accepted_user_ids:
-            history.total_accepted += 1
-        # updated_at は onupdate で自動更新される
 
 # positionが設定されていないシフトの定員チェックに使うバケットキー
 UNSPECIFIED_POSITION = "unspecified"
@@ -1422,7 +1344,7 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
         for h in histories:
             # 月次リセットが必要な場合は率を0扱いにする
             if h.reset_mode == 'monthly':
-                current_ym = _get_current_year_month()
+                current_ym = get_current_year_month()
                 if h.last_reset_year_month != current_ym:
                     rejection_rate_map[h.user_id] = 0.0
                     continue
@@ -1586,7 +1508,7 @@ def admin_auto_adjust(date_str):
         # 割当計算の元になるデータ取得より前にロックを取得し、
         # 「読み取り→計算→書き込み」の一連の処理全体を他リクエストと排他にする
         try:
-            _acquire_shop_shift_lock(user.shop_id)
+            acquire_shop_shift_lock(user.shop_id)
         except ShiftLockConflict:
             return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
 
@@ -1638,107 +1560,7 @@ def admin_auto_adjust(date_str):
 
     return jsonify({"assignments": assignments, "metrics": metrics}), 200
 
-# -------------------- API: 棄却履歴一覧取得 (Admin専用) --------------------
-@app.route("/api/shop/<int:shop_id>/rejection_history", methods=["GET"])
-@jwt_required()
-def get_rejection_history(shop_id):
-    user_id_str = get_jwt_identity()
-    user_id = int(user_id_str)
-    user = db.session.get(User, user_id)
- 
-    if not user or user.role != 'admin' or user.shop_id != shop_id:
-        return jsonify({"error": "権限がありません"}), 403
- 
-    histories = ShiftRejectionHistory.query.filter_by(shop_id=shop_id).all()
-    return jsonify({"histories": [h.to_dict() for h in histories]}), 200
- 
- 
-# -------------------- API: 棄却履歴リセット (Admin専用) --------------------
-# reset_type: 'all' (全員リセット) / 'user' (特定ユーザーのみ)
-@app.route("/api/shop/<int:shop_id>/rejection_history/reset", methods=["POST"])
-@jwt_required()
-def reset_rejection_history(shop_id):
-    user_id_str = get_jwt_identity()
-    user_id = int(user_id_str)
-    user = db.session.get(User, user_id)
- 
-    if not user or user.role != 'admin' or user.shop_id != shop_id:
-        return jsonify({"error": "権限がありません"}), 403
- 
-    data = request.json or {}
-    reset_type = data.get("reset_type", "all")   # 'all' or 'user'
-    target_user_id = data.get("user_id")          # reset_type='user' の場合に必要
-    current_ym = _get_current_year_month()
- 
-    try:
-        if reset_type == "all":
-            # 店舗の全スタッフをリセット
-            histories = ShiftRejectionHistory.query.filter_by(shop_id=shop_id).all()
-            for h in histories:
-                h.total_requests = 0
-                h.total_accepted = 0
-                h.last_reset_year_month = current_ym
-            db.session.commit()
-            return jsonify({"message": f"{len(histories)}件の履歴をリセットしました。"}), 200
- 
-        elif reset_type == "user":
-            if not target_user_id:
-                return jsonify({"error": "user_idが必要です"}), 400
-            history = ShiftRejectionHistory.query.filter_by(
-                shop_id=shop_id, user_id=target_user_id
-            ).first()
-            if not history:
-                return jsonify({"error": "履歴が見つかりません"}), 404
-            history.total_requests = 0
-            history.total_accepted = 0
-            history.last_reset_year_month = current_ym
-            db.session.commit()
-            return jsonify({"message": "履歴をリセットしました。"}), 200
- 
-        else:
-            return jsonify({"error": "reset_typeは 'all' または 'user' を指定してください"}), 400
- 
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"リセット中にエラーが発生しました: {str(e)}"}), 500
- 
- 
-# -------------------- API: リセットモード変更 (Admin専用) --------------------
-# reset_mode: 'manual' or 'monthly'
-@app.route("/api/shop/<int:shop_id>/rejection_history/reset_mode", methods=["POST"])
-@jwt_required()
-def update_reset_mode(shop_id):
-    user_id_str = get_jwt_identity()
-    user_id = int(user_id_str)
-    user = db.session.get(User, user_id)
- 
-    if not user or user.role != 'admin' or user.shop_id != shop_id:
-        return jsonify({"error": "権限がありません"}), 403
- 
-    data = request.json or {}
-    new_mode = data.get("reset_mode")
-    target_user_id = data.get("user_id")  # Noneなら全員まとめて変更
- 
-    if new_mode not in ('manual', 'monthly'):
-        return jsonify({"error": "reset_modeは 'manual' または 'monthly' を指定してください"}), 400
- 
-    try:
-        query = ShiftRejectionHistory.query.filter_by(shop_id=shop_id)
-        if target_user_id:
-            query = query.filter_by(user_id=target_user_id)
-        
-        histories = query.all()
-        for h in histories:
-            h.reset_mode = new_mode
-        
-        db.session.commit()
-        return jsonify({
-            "message": f"{len(histories)}件のリセットモードを '{new_mode}' に変更しました。"
-        }), 200
- 
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": f"更新中にエラーが発生しました: {str(e)}"}), 500
+# 棄却履歴の閲覧・リセット関連エンドポイントは blueprints/rejection_history.py に切り出し済み（PBI #40）
 
 # -------------------- API: セッション取得 (JWT対応版) --------------------
 @app.route("/api/session")
