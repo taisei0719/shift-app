@@ -28,6 +28,8 @@ ALLOWED_SELF_REGISTER_ROLES = {"staff", "admin"}
 @limiter.limit("10 per minute")
 def register():
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     name = data.get("name")
     email = data.get("email")
     password = data.get("password")
@@ -83,6 +85,8 @@ def edit_account():
     user_id = int(user_id_str)
 
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     new_name = data.get("name")
     new_email = data.get("email")
     new_password = data.get("password") # パスワードは変更する場合のみ
@@ -169,6 +173,8 @@ def delete_account():
 @limiter.limit("10 per minute")
 def login():
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     identifier = data.get("identifier")
     password = data.get("password")
 

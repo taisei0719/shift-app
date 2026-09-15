@@ -62,6 +62,13 @@ def test_register_duplicate_email(client, make_user):
     assert res.status_code == 400
 
 
+def test_register_rejects_literal_null_body(client):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く（issue #83）。"""
+    res = client.post("/api/register", data="null", content_type="application/json")
+
+    assert res.status_code == 400
+
+
 def test_login_success(client, make_user):
     make_user(email="login@example.com", password="password123")
 
@@ -89,6 +96,13 @@ def test_login_unknown_user(client):
     )
 
     assert res.status_code == 401
+
+
+def test_login_rejects_literal_null_body(client):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く（issue #83）。"""
+    res = client.post("/api/login", data="null", content_type="application/json")
+
+    assert res.status_code == 400
 
 
 def test_logout(client):
@@ -139,6 +153,18 @@ def test_edit_account_requires_auth(client):
     res = client.post("/api/account/edit", json={"name": "NoAuth"})
 
     assert res.status_code == 401
+
+
+def test_edit_account_rejects_literal_null_body(client, make_user, auth_header):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く（issue #83）。"""
+    make_user(email="edit3@example.com", password="password123")
+    headers = auth_header("edit3@example.com", "password123")
+
+    res = client.post(
+        "/api/account/edit", headers=headers, data="null", content_type="application/json"
+    )
+
+    assert res.status_code == 400
 
 
 def test_delete_account_removes_user(client, make_user, auth_header):
