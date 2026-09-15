@@ -176,6 +176,13 @@ def handle_join_request(user_id):
     if not target_user:
         return jsonify({"error": "対象ユーザーが見つかりません"}), 404
 
+    # 対象ユーザーが実際に自分の店舗への参加をリクエストしていたかを検証する。
+    # 検証しないと、URLパスのuser_idを変えるだけで参加リクエストを送っていない
+    # 任意のユーザーや、既に他店舗に所属済みのユーザーを自店舗に強制加入させられてしまう。
+    admin_shop = db.session.get(Shop, admin_shop_id)
+    if not admin_shop or target_user.shop_request_code != admin_shop.shop_code:
+        return jsonify({"error": "対象ユーザーからの参加リクエストが見つかりません"}), 404
+
     # 3. アクションの実行
     if action == "approve":
         # 承認処理: user.shop_id を管理者の店舗IDに設定し、リクエストコードをクリア

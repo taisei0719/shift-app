@@ -104,11 +104,13 @@ def test_handle_join_request_reject(client, make_shop, make_user, auth_header, d
     assert refreshed.shop_request_code is None
 
 
-def test_handle_join_request_invalid_action(client, make_shop, make_user, auth_header):
+def test_handle_join_request_invalid_action(client, make_shop, make_user, auth_header, db_session):
     shop = make_shop()
     make_user(email="joinadmin4@example.com", password="password123", role="admin", shop=shop)
     requester = make_user(email="joinstaff8@example.com", password="password123", role="staff")
     requester_id = requester.id
+    requester.shop_request_code = shop.shop_code
+    db_session.commit()
     admin_headers = auth_header("joinadmin4@example.com", "password123")
 
     res = client.post(
@@ -116,6 +118,45 @@ def test_handle_join_request_invalid_action(client, make_shop, make_user, auth_h
     )
 
     assert res.status_code == 400
+
+
+def test_handle_join_request_rejects_approve_without_matching_request(client, make_shop, make_user, auth_header):
+    """target_userが自店舗への参加をリクエストしていない場合、承認できない（issue #85）。
+    admin権限があってもuser_idを変えるだけで任意ユーザーを強制加入させられてはならない。"""
+    shop = make_shop()
+    make_user(email="joinadmin5@example.com", password="password123", role="admin", shop=shop)
+    # 参加リクエストを送っていない（shop_request_codeが未設定の）ユーザー
+    bystander = make_user(email="joinstaff9@example.com", password="password123", role="staff")
+    bystander_id = bystander.id
+    admin_headers = auth_header("joinadmin5@example.com", "password123")
+
+    res = client.post(
+        f"/api/join_requests/{bystander_id}", headers=admin_headers, json={"action": "approve"}
+    )
+
+    assert res.status_code == 404
+
+
+def test_handle_join_request_rejects_approve_for_different_shop_request(client, make_shop, make_user, auth_header, db_session):
+    """target_userが別の店舗への参加をリクエストしている場合、自店舗への承認はできない（issue #85）。"""
+    shop = make_shop()
+    other_shop = make_shop(name="Other Shop")
+    other_shop_code = other_shop.shop_code
+    make_user(email="joinadmin6@example.com", password="password123", role="admin", shop=shop)
+    requester = make_user(email="joinstaff10@example.com", password="password123", role="staff")
+    requester_id = requester.id
+    requester.shop_request_code = other_shop_code
+    db_session.commit()
+    admin_headers = auth_header("joinadmin6@example.com", "password123")
+
+    res = client.post(
+        f"/api/join_requests/{requester_id}", headers=admin_headers, json={"action": "approve"}
+    )
+
+    assert res.status_code == 404
+    refreshed = db_session.get(User, requester_id)
+    assert refreshed.shop_id is None
+    assert refreshed.shop_request_code == other_shop_code
 
 
 def test_get_shop_detail_success(client, make_shop, make_user, auth_header):
