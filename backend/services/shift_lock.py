@@ -10,6 +10,27 @@ class ShiftLockConflict(Exception):
     pass
 
 
+# PostgreSQLの `lock_not_available`（NOWAIT時にロックが取得できなかった場合のSQLSTATE）。
+# 参考: https://www.postgresql.org/docs/current/errcodes-appendix.html
+_POSTGRES_LOCK_NOT_AVAILABLE = "55P03"
+
+
+def _is_lock_conflict(error: OperationalError) -> bool:
+    """
+    OperationalErrorがNOWAITによるロック競合かどうかを判定する。
+    DB接続断・デッドロック等の他のOperationalErrorを誤ってロック競合（409）として
+    扱うと実際の障害を隠蔽してしまうため、ロック競合であることをDB方言固有の
+    情報から確認できた場合のみTrueを返す。
+    """
+    orig = getattr(error, "orig", None)
+    if getattr(orig, "pgcode", None) == _POSTGRES_LOCK_NOT_AVAILABLE:
+        return True
+    # SQLite（開発/テスト環境）はNOWAIT相当のSQLSTATEを持たないため、
+    # sqlite3が返すエラーメッセージで判定する
+    message = str(orig if orig is not None else error).lower()
+    return "database is locked" in message
+
+
 def acquire_shop_shift_lock(shop_id: int) -> None:
     """
     店舗単位でシフト確定・自動調整処理を直列化するため、AutoAdjustConfigの該当店舗行を
@@ -31,4 +52,6 @@ def acquire_shop_shift_lock(shop_id: int) -> None:
         AutoAdjustConfig.query.filter_by(shop_id=shop_id).with_for_update(nowait=True).one()
     except OperationalError as e:
         db.session.rollback()
-        raise ShiftLockConflict() from e
+        if _is_lock_conflict(e):
+            raise ShiftLockConflict() from e
+        raise
