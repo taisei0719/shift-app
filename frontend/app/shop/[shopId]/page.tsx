@@ -157,8 +157,11 @@ export default function ShopDetail() {
     }));
   };
 
-  // タブ（ポジション）一覧: 未設定 + スタッフに設定済みのポジション
-  const positionTabs = [UNSPECIFIED_POSITION, ...staffPositions];
+  // タブ（ポジション）一覧: 未設定 + スタッフに設定済みのポジション + 保存済みcapacitiesに存在するポジション
+  // （スタッフの異動でstaffPositionsから消えても、既存の定員設定を閲覧・編集できるようにする）
+  const positionTabs = Array.from(
+    new Set([UNSPECIFIED_POSITION, ...staffPositions, ...Object.keys(capacities)])
+  );
   const selectedPositionLabel =
     selectedPosition === UNSPECIFIED_POSITION ? UNSPECIFIED_POSITION_LABEL : selectedPosition;
   const currentCapacities: HourCapacityMap = capacities[selectedPosition] || {};
@@ -167,12 +170,11 @@ export default function ShopDetail() {
   // グリッドは未入力の時間帯を0として表示するが、stateに値が一度も書き込まれていない
   // 時間帯・ポジションはcapacitiesオブジェクトに存在しないため、そのまま保存すると
   // backend側で「定員無制限(9999)」として扱われ、表示上の0と実際の挙動がズレてしまう。
-  // 現在タブに表示されている全ポジション×開閉店時間内の全時間帯を、既存値または0で明示的に埋める
-  // （タブに表示されていない過去のポジションのcapacitiesは保持したまま維持する）。
+  // positionTabsは保存済みcapacitiesのポジションも含むため、これを全ポジション一覧として使い、
+  // 各ポジション×開閉店時間内の全時間帯を既存値または0で明示的に埋める。
   const buildCapacitiesForSave = (): CapacitiesMap => {
-    const allPositions = Array.from(new Set([...Object.keys(capacities), ...positionTabs]));
     const normalized: CapacitiesMap = {};
-    for (const pos of allPositions) {
+    for (const pos of positionTabs) {
       const posCaps = capacities[pos] || {};
       const hourCaps: HourCapacityMap = {};
       for (let h = openHour; h < closeHour; h++) {
