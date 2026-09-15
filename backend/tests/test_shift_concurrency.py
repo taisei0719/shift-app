@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import app as app_module
+from blueprints import shifts as shifts_module
 
 
 def test_confirm_shifts_returns_409_on_lock_conflict(client, make_shop, make_user, auth_header):
@@ -10,7 +11,7 @@ def test_confirm_shifts_returns_409_on_lock_conflict(client, make_shop, make_use
     staff_id = staff.id
     admin_headers = auth_header("lockadmin1@example.com", "password123")
 
-    with patch.object(app_module, "acquire_shop_shift_lock", side_effect=app_module.ShiftLockConflict()):
+    with patch.object(shifts_module, "acquire_shop_shift_lock", side_effect=shifts_module.ShiftLockConflict()):
         res = client.post(
             "/api/admin/shifts/confirm",
             headers=admin_headers,
