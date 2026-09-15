@@ -3,6 +3,8 @@ reviews:
     enabled: true
     drafts: false
     auto_incremental_review: true
-    auto_pause_after_reviewed_commits: 1
+    # NOTE: CodeRabbit Advancedプランのトライアル期間中（〜2026-09-26、1時間10レビューまで）は
+    # auto_pause_after_reviewed_commitsを外し、pushのたびに自動レビューされるようにしている。
+    # トライアル終了後（Freeプラン、1時間1レビュー程度に戻る想定）は auto_pause_after_reviewed_commits: 1 を再設定すること。
     base_branches:
       - "^develop$"
