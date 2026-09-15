@@ -269,6 +269,12 @@ export default function ShopUsersPage() {
                                             type="text"
                                             list="position-suggestions"
                                             aria-label={`${shopUser.user_name}のポジション`}
+                                            aria-invalid={!!positionError[shopUser.user_id]}
+                                            aria-describedby={
+                                                positionError[shopUser.user_id]
+                                                    ? `position-error-${shopUser.user_id}`
+                                                    : undefined
+                                            }
                                             value={positionDrafts[shopUser.user_id] ?? ''}
                                             onChange={(e) =>
                                                 setPositionDrafts((prev) => ({
@@ -292,7 +298,7 @@ export default function ShopUsersPage() {
                                         </button>
                                     </div>
                                     {positionError[shopUser.user_id] && (
-                                        <p className="text-xs text-red-600 mt-1">
+                                        <p id={`position-error-${shopUser.user_id}`} className="text-xs text-red-600 mt-1">
                                             {positionError[shopUser.user_id]}
                                         </p>
                                     )}
