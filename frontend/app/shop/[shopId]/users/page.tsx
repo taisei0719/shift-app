@@ -103,7 +103,8 @@ export default function ShopUsersPage() {
 
     // ポジション保存
     const handlePositionSave = async (targetUserId: number) => {
-        const draft = (positionDrafts[targetUserId] ?? '').trim();
+        const submittedDraft = positionDrafts[targetUserId] ?? '';
+        const draft = submittedDraft.trim();
         const seq = (saveRequestSeqRef.current[targetUserId] ?? 0) + 1;
         saveRequestSeqRef.current[targetUserId] = seq;
         setSavingUserIds((prev) => new Set(prev).add(targetUserId));
@@ -117,8 +118,14 @@ export default function ShopUsersPage() {
             setUsersInShop((prev) =>
                 prev.map((u) => (u.user_id === targetUserId ? { ...u, position: res.data.position } : u))
             );
-            // 入力欄の表示もサーバー側の正規化後の値（空白のみ→nullなど）に合わせる
-            setPositionDrafts((prev) => ({ ...prev, [targetUserId]: res.data.position ?? '' }));
+            // 入力欄の表示もサーバー側の正規化後の値（空白のみ→nullなど）に合わせる。
+            // ただし保存中に入力欄が編集されていた場合（送信時のdraftと現在値が異なる）は
+            // 未保存の新しい編集を上書きしないよう、そのままにする
+            setPositionDrafts((prev) =>
+                (prev[targetUserId] ?? '') === submittedDraft
+                    ? { ...prev, [targetUserId]: res.data.position ?? '' }
+                    : prev
+            );
         } catch (err) {
             if (saveRequestSeqRef.current[targetUserId] !== seq) return;
             setPositionError((prev) => ({

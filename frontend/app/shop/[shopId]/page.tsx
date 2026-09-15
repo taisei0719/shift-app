@@ -163,6 +163,26 @@ export default function ShopDetail() {
     selectedPosition === UNSPECIFIED_POSITION ? UNSPECIFIED_POSITION_LABEL : selectedPosition;
   const currentCapacities: HourCapacityMap = capacities[selectedPosition] || {};
 
+  // 保存直前にcapacitiesを正規化する。
+  // グリッドは未入力の時間帯を0として表示するが、stateに値が一度も書き込まれていない
+  // 時間帯・ポジションはcapacitiesオブジェクトに存在しないため、そのまま保存すると
+  // backend側で「定員無制限(9999)」として扱われ、表示上の0と実際の挙動がズレてしまう。
+  // 現在タブに表示されている全ポジション×開閉店時間内の全時間帯を、既存値または0で明示的に埋める
+  // （タブに表示されていない過去のポジションのcapacitiesは保持したまま維持する）。
+  const buildCapacitiesForSave = (): CapacitiesMap => {
+    const allPositions = Array.from(new Set([...Object.keys(capacities), ...positionTabs]));
+    const normalized: CapacitiesMap = {};
+    for (const pos of allPositions) {
+      const posCaps = capacities[pos] || {};
+      const hourCaps: HourCapacityMap = {};
+      for (let h = openHour; h < closeHour; h++) {
+        hourCaps[String(h)] = posCaps[String(h)] ?? 0;
+      }
+      normalized[pos] = hourCaps;
+    }
+    return normalized;
+  };
+
   // 店舗情報更新
   const handleShopSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +215,7 @@ export default function ShopDetail() {
 
       await api.post(`/shop/${shopId}/auto_adjust/config`, {
         priorities,
-        capacities,
+        capacities: buildCapacitiesForSave(),
         options: { open_hour: openHour, close_hour: closeHour },
       });
       setMessage("営業時間・定員設定を保存しました");
