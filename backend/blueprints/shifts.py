@@ -292,16 +292,21 @@ def confirm_shifts():
             if 'user_id' not in shift_data or 'start_time' not in shift_data or 'end_time' not in shift_data:
                 continue
 
+            # user_idがadminの店舗に実在しない場合（他店舗のユーザー・存在しないID等）は
+            # 不整合なShiftレコードを作らないようスキップする
+            target_user = users_by_id.get(shift_data['user_id'])
+            if not target_user:
+                continue
+
             start_time_obj = datetime.strptime(shift_data['start_time'], '%H:%M').time()
             end_time_obj = datetime.strptime(shift_data['end_time'], '%H:%M').time()
-            target_user = users_by_id.get(shift_data['user_id'])
 
             # 対応するリクエストがあればそのpositionを引き継ぎ（定員チェックとの整合性を保つ）、
             # なければ現時点でのUser.positionをスナップショットする
             if shift_data['user_id'] in request_position_by_user:
                 position = request_position_by_user[shift_data['user_id']]
             else:
-                position = target_user.position if target_user else None
+                position = target_user.position
 
             new_shift = Shift(
                 user_id=shift_data['user_id'],

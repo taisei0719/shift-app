@@ -89,3 +89,37 @@ def test_admin_confirm_requires_admin_role(client, make_shop, make_user, auth_he
     )
 
     assert res.status_code == 403
+
+
+def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):
+    """confirmed_shiftsのuser_idが管理者の店舗に実在しない場合（他店舗のユーザー等）は、
+    不整合なShiftレコードを作らずスキップする（issue #70）。"""
+    shop_a = make_shop()
+    shop_b = make_shop()
+    make_user(email="admin_a@example.com", password="password123", role="admin", shop=shop_a)
+    other_shop_staff = make_user(email="staff_b@example.com", password="password123", role="staff", shop=shop_b)
+    other_shop_staff_id = other_shop_staff.id
+    admin_headers = auth_header("admin_a@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=admin_headers,
+        json={
+            "confirmed_shifts": [
+                {
+                    "user_id": other_shop_staff_id,
+                    "shift_date": "2026-10-01",
+                    "start_time": "09:00",
+                    "end_time": "17:00",
+                }
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    assert "0件確定しました" in res.get_json()["message"]
+
+    staff_b_headers = auth_header("staff_b@example.com", "password123")
+    check = client.get("/api/shifts/2026-10-01", headers=staff_b_headers)
+    assert check.status_code == 200
+    assert check.get_json()["confirmed_shifts"] == []
