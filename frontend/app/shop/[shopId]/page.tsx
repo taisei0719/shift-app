@@ -65,6 +65,10 @@ export default function ShopDetail() {
   const [configLoading, setConfigLoading] = useState(false);
   // auto_adjust設定の取得が完了したか（失敗・未完了時に初期状態のまま保存してしまうのを防ぐ）
   const [configLoaded, setConfigLoaded] = useState(false);
+  // スタッフのポジション一覧の取得が完了したか（未完了のまま保存するとbuildCapacitiesForSaveが
+  // 現在割り当て済みのポジションを見落とし、capacitiesから漏れたポジションがbackendで
+  // 定員無制限(9999)扱いになってしまうのを防ぐ）
+  const [staffPositionsLoaded, setStaffPositionsLoaded] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -123,6 +127,7 @@ export default function ShopDetail() {
   // スタッフに設定済みのポジション一覧の取得（タブ表示用）
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
+    setStaffPositionsLoaded(false);
     api
       .get(`/shops/${shopId}/users`)
       .then((res) => {
@@ -131,6 +136,7 @@ export default function ShopDetail() {
           new Set(users.map((u) => u.position).filter((p): p is string => !!p))
         );
         setStaffPositions(positions);
+        setStaffPositionsLoaded(true);
       })
       .catch(() => {});
   }, [shopId, isAdmin]);
@@ -449,6 +455,7 @@ export default function ShopDetail() {
                       type="number"
                       min={0}
                       max={99}
+                      aria-label={`${selectedPositionLabel} ${String(h).padStart(2, "0")}:00 の必要スタッフ数`}
                       value={currentCapacities[String(h)] ?? 0}
                       onChange={(e) =>
                         handleCapacityChange(h, e.target.value)
@@ -464,20 +471,22 @@ export default function ShopDetail() {
             {/* 保存ボタン */}
             <button
               onClick={handleConfigSave}
-              disabled={configLoading || !configLoaded}
+              disabled={configLoading || !configLoaded || !staffPositionsLoaded}
               className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 disabled:bg-gray-400 transition duration-150"
             >
               {configLoading
                 ? "保存中..."
-                : !configLoaded
+                : !configLoaded || !staffPositionsLoaded
                 ? "設定を読み込み中..."
                 : "営業時間・定員を保存"}
             </button>
-            {!configLoaded && !configLoading && (
-              <p className="text-xs text-gray-400 mt-2 text-center">
-                設定の取得が完了するまで保存できません。読み込みに失敗した場合はページを再読み込みしてください。
-              </p>
-            )}
+            {!configLoaded || !staffPositionsLoaded ? (
+              !configLoading && (
+                <p className="text-xs text-gray-400 mt-2 text-center">
+                  設定の取得が完了するまで保存できません。読み込みに失敗した場合はページを再読み込みしてください。
+                </p>
+              )
+            ) : null}
 
             {/* 自動調整設定ページへのリンク */}
             <div className="mt-4 pt-4 border-t border-gray-100">
