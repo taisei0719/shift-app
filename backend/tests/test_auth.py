@@ -1,4 +1,4 @@
-from models import User
+from models import User, ShiftRejectionHistory
 
 
 def test_register_success(client):
@@ -159,3 +159,23 @@ def test_delete_account_requires_auth(client):
     res = client.post("/api/account/delete")
 
     assert res.status_code == 401
+
+
+def test_delete_account_removes_rejection_history(client, make_shop, make_user, auth_header, db_session):
+    """PostgreSQL（本番）はShiftRejectionHistory.user_idの外部キー制約をデフォルトで強制するため、
+    棄却履歴を残したままdb.session.delete(user)すると制約違反でアカウント削除が失敗しうる（issue #80）。"""
+    shop = make_shop()
+    user = make_user(email="delete2@example.com", password="password123", role="staff", shop=shop)
+    user_id = user.id
+    headers = auth_header("delete2@example.com", "password123")
+
+    history = ShiftRejectionHistory(
+        user_id=user_id, shop_id=shop.id, total_requests=3, total_accepted=1, reset_mode="manual"
+    )
+    db_session.add(history)
+    db_session.commit()
+
+    res = client.post("/api/account/delete", headers=headers)
+
+    assert res.status_code == 200
+    assert ShiftRejectionHistory.query.filter_by(user_id=user_id).first() is None
