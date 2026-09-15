@@ -78,13 +78,14 @@ def make_shop(db_session):
 
 @pytest.fixture()
 def make_user(db_session):
-    def _make_user(name="staff", email="staff@example.com", password="password123", role="staff", shop=None):
+    def _make_user(name="staff", email="staff@example.com", password="password123", role="staff", shop=None, position=None):
         user = User(
             name=name,
             email=email,
             role=role,
             password=generate_password_hash(password),
             shop_id=shop.id if shop else None,
+            position=position,
         )
         db_session.add(user)
         db_session.commit()

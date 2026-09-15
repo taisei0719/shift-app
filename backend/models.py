@@ -17,6 +17,7 @@ class User(db.Model):
     shop = db.relationship("Shop", backref="users", uselist=False)   
     shop_request_code = db.Column(db.String(32), nullable=True)
     total_priority = db.Column(db.Integer, default=3, nullable=False)
+    position = db.Column(db.String(50), nullable=True)
 
 
 class Shift(db.Model):
@@ -27,7 +28,9 @@ class Shift(db.Model):
     shift_date = db.Column(db.Date, nullable=False)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
-    shift_type = db.Column(db.String(20), nullable=False, default='request') 
+    shift_type = db.Column(db.String(20), nullable=False, default='request')
+    # シフト作成時点でのUser.positionをスナップショットする（後でUserのpositionが変わっても過去の記録は変わらない）
+    position = db.Column(db.String(50), nullable=True)
     user = db.relationship('User', backref=db.backref('shifts', lazy=True))
 
     def to_dict(self):
@@ -39,6 +42,7 @@ class Shift(db.Model):
             'start_time': self.start_time.strftime('%H:%M'),
             'end_time': self.end_time.strftime('%H:%M'),
             'shift_type': self.shift_type,
+            'position': self.position,
             'user_name': self.user.name,
         }
 
