@@ -60,3 +60,67 @@ def test_logout(client):
     res = client.post("/api/logout")
 
     assert res.status_code == 200
+
+
+def test_session_without_token_returns_none_user(client):
+    res = client.get("/api/session")
+
+    assert res.status_code == 200
+    assert res.get_json()["user"] is None
+
+
+def test_session_with_valid_token_returns_user(client, make_user, auth_header):
+    make_user(email="session1@example.com", password="password123", name="SessionUser")
+    headers = auth_header("session1@example.com", "password123")
+
+    res = client.get("/api/session", headers=headers)
+
+    assert res.status_code == 200
+    assert res.get_json()["user"]["user_name"] == "SessionUser"
+
+
+def test_edit_account_updates_name(client, make_user, auth_header):
+    make_user(email="edit1@example.com", password="password123", name="OldName")
+    headers = auth_header("edit1@example.com", "password123")
+
+    res = client.post("/api/account/edit", headers=headers, json={"name": "NewName"})
+
+    assert res.status_code == 200
+    session_res = client.get("/api/session", headers=headers)
+    assert session_res.get_json()["user"]["user_name"] == "NewName"
+
+
+def test_edit_account_rejects_duplicate_email(client, make_user, auth_header):
+    make_user(email="edit2@example.com", password="password123")
+    make_user(email="taken@example.com", password="password123")
+    headers = auth_header("edit2@example.com", "password123")
+
+    res = client.post("/api/account/edit", headers=headers, json={"email": "taken@example.com"})
+
+    assert res.status_code == 400
+
+
+def test_edit_account_requires_auth(client):
+    res = client.post("/api/account/edit", json={"name": "NoAuth"})
+
+    assert res.status_code == 401
+
+
+def test_delete_account_removes_user(client, make_user, auth_header):
+    make_user(email="delete1@example.com", password="password123")
+    headers = auth_header("delete1@example.com", "password123")
+
+    res = client.post("/api/account/delete", headers=headers)
+
+    assert res.status_code == 200
+
+    login_res = client.post(
+        "/api/login", json={"identifier": "delete1@example.com", "password": "password123"}
+    )
+    assert login_res.status_code == 401
+
+
+def test_delete_account_requires_auth(client):
+    res = client.post("/api/account/delete")
+
+    assert res.status_code == 401

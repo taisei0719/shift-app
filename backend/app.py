@@ -5,7 +5,7 @@ import os
 from flask import Flask, request, jsonify
 from models import db, User, Shop, Shift, AutoAdjustConfig, ShiftRejectionHistory
 from flask_cors import CORS
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta, date, time
 import random
 from dotenv import load_dotenv
@@ -13,12 +13,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 import time as pytime
 import math
-from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
+from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies
 from flask_jwt_extended import create_refresh_token, set_refresh_cookies
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import sentry_sdk
 
+from extensions import limiter
 from services.shift_lock import ShiftLockConflict, acquire_shop_shift_lock
 from services.rejection_history import get_current_year_month, get_or_create_history
 
@@ -49,7 +48,7 @@ app.config["JWT_COOKIE_CSRF_PROTECT"] = True
 
 jwt = JWTManager(app)
 
-limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
+limiter.init_app(app)
 
 #app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
@@ -101,8 +100,10 @@ CORS(
 # -------------------- Blueprint登録 --------------------
 # ドメインごとに切り出したBlueprintをここに追加していく（PBI #40）
 from blueprints.rejection_history import rejection_history_bp  # noqa: E402
+from blueprints.auth import auth_bp  # noqa: E402
 
 app.register_blueprint(rejection_history_bp)
+app.register_blueprint(auth_bp)
 
 # -------------------- JWTエラーハンドリング --------------------
 # トークンがない、または不正な場合のカスタムレスポンスを設定
@@ -267,190 +268,8 @@ def manual_init_db():
     except Exception as e:
         return f"エラー : {str(e)}", 500
 
-# -------------------- API: ユーザー登録 --------------------
-@app.route("/api/register", methods=["POST"])
-@limiter.limit("10 per minute")
-def register():
-    data = request.json
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
-    role = data.get("role", "staff") # 登録時には role は 'staff' などのデフォルト値が設定されることを想定
-
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
-    if not name or not email or not password:
-        return jsonify({"error": "名前・メール・パスワードは必須やで！"}), 400
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
-
-    user = User(
-        name=name,
-        email=email,
-        role=role,
-        password=generate_password_hash(password)
-    )
-    db.session.add(user)
-    db.session.commit() # ユーザーID (user.id) が確定する
-
-    # ★★★ 登録成功後、JWTトークンを発行する ★★★
-
-    # 1. アクセストークンを生成
-    access_token = create_access_token(identity=str(user.id), fresh=True)
-
-    # 2. レスポンスオブジェクトを作成
-    response = jsonify({
-        "message": "登録成功",
-        # "access_token": access_token, # クッキーで渡すため、JSONからは削除してもOK
-        "user": {
-            "user_name": user.name,
-            "role": user.role,
-            "shop_name": None,
-            "shop_id": None
-        }
-    })
-    
-    # 3. クッキーを設定してからリターンする
-    set_access_cookies(response, access_token) 
-
-    # 4. レスポンスを返す
-    return response, 201
-
-# -------------------- API: アカウント情報編集 (JWT 対応) --------------------
-@app.route("/api/account/edit", methods=["POST"])
-@jwt_required() # JWTトークンが必須
-def edit_account():
-    # 1. ログインチェック (JWTからユーザーIDを取得)
-    user_id_str = get_jwt_identity()
-    user_id = int(user_id_str)
-    
-    data = request.json
-    new_name = data.get("name")
-    new_email = data.get("email")
-    new_password = data.get("password") # パスワードは変更する場合のみ
-
-    # ユーザーオブジェクトを取得
-    user = db.session.get(User, user_id)
-    # トークンが有効でもDBにユーザーがいなかった場合
-    if not user:
-        return jsonify({"error": "ユーザーが見つかりません"}), 404
-
-    # 2. 名前の更新
-    if new_name:
-        user.name = new_name
-
-    # 3. メールの更新と重複チェック
-    if new_email and new_email != user.email:
-        # 他のユーザーが既にそのメールアドレスを使っていないかチェック (自分自身は除外)
-        if User.query.filter(User.email == new_email, User.id != user_id).first():
-            return jsonify({"error": "そのメールアドレスは既に使用されています"}), 400
-        user.email = new_email
-
-    # 4. パスワードの更新
-    if new_password:
-        # werkzeug.security の generate_password_hash を使用
-        user.password = generate_password_hash(new_password)
-
-    db.session.commit()
-    
-    # 5. 成功レスポンス
-    return jsonify({"message": "アカウント情報を更新しました"}), 200
-
-
-# -------------------- API: アカウント削除 (JWT 対応) --------------------
-@app.route("/api/account/delete", methods=["POST"])
-@jwt_required() # ★ JWTトークンが必須になる
-def delete_account():
-    # 1. ログインチェック (JWTからユーザーIDを取得)
-    user_id_str = get_jwt_identity()
-    user_id = int(user_id_str) # トークンから user_id を取得
-    
-    # 2. ユーザーオブジェクトを取得
-    user = db.session.get(User, user_id)
-    # トークンが有効でもDBにユーザーがいなかった場合
-    if not user:
-        # ユーザーが見つからなくても、クライアントのクッキーを破棄して強制ログアウト
-        response = jsonify({"error": "ユーザーが見つかりません。ログアウトします。"}), 404
-        # タプルからレスポンスオブジェクトのみを取得して渡す
-        unset_jwt_cookies(response[0]) 
-        return response
-
-    try:
-        # 3. 関連データの削除
-        # ユーザーに紐づく全ての Shift を削除
-        Shift.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
-
-        # 4. ユーザーアカウント本体の削除
-        db.session.delete(user)
-        
-        # 5. セッション情報のクリア (JWTでは不要だが、念のためログイン/JWT情報削除)        
-        db.session.commit()
-        
-        # 6. 削除成功時、レスポンスオブジェクトを作成し、JWTクッキーを削除
-        # jsonifyの結果 (レスポンスオブジェクト) を変数に代入
-        response = jsonify({"message": "アカウントを正常に削除しました"})
-        
-        # response オブジェクトを unset_jwt_cookies に渡す
-        unset_jwt_cookies(response) 
-        
-        # 7. 最終的なレスポンスを返す (status code 200)
-        return response, 200 # または return response
-        # responseは既に200 OKのデフォルトステータスを持つため、return response で十分
-
-    except Exception:
-        db.session.rollback()
-        return jsonify({"error": "アカウントの削除中にエラーが発生しました"}), 500
-
-# -------------------- API: ログイン (JWT対応版) --------------------
-@app.route("/api/login", methods=["POST"])
-@limiter.limit("10 per minute")
-def login():
-    data = request.json
-    identifier = data.get("identifier")
-    password = data.get("password")
-
-    # 名前またはメールアドレスでユーザーを検索
-    user = User.query.filter((User.name==identifier)|(User.email==identifier)).first()
-    
-    if user and check_password_hash(user.password, password):
-        # ユーザーに紐づく店舗名を取得 (user.shopがNoneの場合を安全にチェック)
-        shop_name_val = user.shop.name if user.shop else None
-        
-        # 1. アクセストークンを生成
-        access_token = create_access_token(identity=str(user.id), fresh=True)
-
-        # 3. レスポンスオブジェクトを作成
-        response = jsonify({
-            "message": "ログイン成功",
-            "access_token": access_token, # モバイル/Webが保存するトークン
-            "user": {
-                "user_name": user.name,
-                "role": user.role,
-                "shop_name": shop_name_val,
-                "shop_id": user.shop_id 
-            }
-        })
-        
-        # 4. クッキーを設定してからリターンする
-        set_access_cookies(response, access_token) 
-
-        # 5. レスポンスオブジェクトとステータスコードを返す
-        return response, 200
-        
-    # 認証失敗
-    return jsonify({"error": "ユーザー名かパスワードが違います"}), 401
-
-# -------------------- API: ログアウト (JWT対応版) --------------------
-@app.route("/api/logout", methods=["POST"])
-def logout():
-    # 1. レスポンスオブジェクトを生成
-    response = jsonify({"message": "ログアウト成功"})
-    
-    # 2. JWT クッキーを削除 (クライアントにトークン破棄を指示)
-    # クッキーを使ってJWTをやり取りしている場合に必須
-    unset_jwt_cookies(response) 
-    
-    return response, 200 # 修正後のレスポンスを返す
+# 認証・アカウント関連エンドポイント（register, login, logout, session, account edit/delete）は
+# blueprints/auth.py に切り出し済み（PBI #40）
 
 # -------------------- API: シフト提出  --------------------
 @app.route("/api/shifts/submit_request", methods=["POST"]) 
@@ -1561,42 +1380,7 @@ def admin_auto_adjust(date_str):
     return jsonify({"assignments": assignments, "metrics": metrics}), 200
 
 # 棄却履歴の閲覧・リセット関連エンドポイントは blueprints/rejection_history.py に切り出し済み（PBI #40）
-
-# -------------------- API: セッション取得 (JWT対応版) --------------------
-@app.route("/api/session")
-@jwt_required(optional=True) # トークンがなくても関数が実行されるようにする
-def get_session():
-    # 1. JWTからユーザー情報を取得
-    user_id_str = get_jwt_identity() 
-    # 2. トークンが存在しない、または無効な場合は、未ログインとして処理
-    if user_id_str is None:
-        # 未ログインの場合は user: None を返し、200 OK でレスポンスを確定させる
-        return jsonify({"user": None}), 200 
-    # 不正な形式のID（数値でない文字列など）のチェックを追加
-    if not isinstance(user_id_str, str) or not user_id_str.isdigit():
-        return jsonify({"user": None}), 200 # 無効なトークンとして扱う
-
-    # 3. トークンが有効な場合の処理
-    user_id = int(user_id_str)
-    user_from_db = User.query.get(user_id)
-
-    if user_from_db:
-        # 最新のユーザー情報をDBから取得して返す
-        return jsonify({
-            "user": {
-                "user_name": user_from_db.name,
-                "role": user_from_db.role,
-                "shop_name": user_from_db.shop.name if user_from_db.shop else None, 
-                "shop_id": user_from_db.shop_id, 
-                "shop_request_code": user_from_db.shop_request_code
-            }
-        }), 200 # 成功時は200を明示
-        
-    # トークンは有効だけどDBにユーザーがいなかった場合
-    return jsonify({"user": None}), 200 # この場合も未ログインとして扱う
-
-
-
+# セッション取得エンドポイントは blueprints/auth.py に切り出し済み（PBI #40）
 
 # 開発用
 if __name__ == "__main__":
