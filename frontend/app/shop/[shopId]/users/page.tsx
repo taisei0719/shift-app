@@ -1,10 +1,10 @@
 // frontend/app/shop/[shopId]/users/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useUser } from '@/app/context/UserContext'; 
-import { api } from '@/lib/api'; 
+import { useUser } from '@/app/context/UserContext';
+import { api, getErrorMessage } from '@/lib/api';
 
 // データ型定義 (バックエンドのAPIレスポンスに合わせる)
 interface ShopUser {
@@ -12,6 +12,7 @@ interface ShopUser {
     user_name: string;
     role: 'owner' | 'staff' | 'admin';
     is_owner: boolean;
+    position: string | null;
 }
 
 interface ShopData {
@@ -34,8 +35,15 @@ export default function ShopUsersPage() {
     const [shopData, setShopData] = useState<ShopData | null>(null);
     const [usersInShop, setUsersInShop] = useState<ShopUser[]>([]);
     // APIデータ取得用のローディングステート
-    const [isLoading, setIsLoading] = useState(true); 
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // ポジション編集用のドラフト値・保存状態（ユーザーIDごとに独立して管理する）
+    const [positionDrafts, setPositionDrafts] = useState<Record<number, string>>({});
+    const [savingUserIds, setSavingUserIds] = useState<Set<number>>(new Set());
+    const [positionError, setPositionError] = useState<Record<number, string>>({});
+    // ユーザーIDごとの最新リクエスト番号（同一ユーザーへの連続保存で古いレスポンスが後勝ちしないようにする）
+    const saveRequestSeqRef = useRef<Record<number, number>>({});
 
     // 認証とデータ取得
     useEffect(() => {  
@@ -73,6 +81,11 @@ export default function ShopUsersPage() {
                         return 0;
                     });
                     setUsersInShop(sortedUsers);
+                    const drafts: Record<number, string> = {};
+                    sortedUsers.forEach((u: ShopUser) => {
+                        drafts[u.user_id] = u.position || '';
+                    });
+                    setPositionDrafts(drafts);
                 } else {
                     setError("従業員データの取得に失敗しました。");
                 }
@@ -87,6 +100,53 @@ export default function ShopUsersPage() {
         fetchUsers();
     }, [user, loading, shopId, router]);
 
+
+    // ポジション保存
+    const handlePositionSave = async (targetUserId: number) => {
+        const submittedDraft = positionDrafts[targetUserId] ?? '';
+        const draft = submittedDraft.trim();
+        const seq = (saveRequestSeqRef.current[targetUserId] ?? 0) + 1;
+        saveRequestSeqRef.current[targetUserId] = seq;
+        setSavingUserIds((prev) => new Set(prev).add(targetUserId));
+        setPositionError((prev) => ({ ...prev, [targetUserId]: '' }));
+        try {
+            const res = await api.patch(`/shops/${shopId}/users/${targetUserId}/position`, {
+                position: draft || null,
+            });
+            // このユーザーに対して後から送信されたリクエストがあれば、古いレスポンスは無視する
+            if (saveRequestSeqRef.current[targetUserId] !== seq) return;
+            setUsersInShop((prev) =>
+                prev.map((u) => (u.user_id === targetUserId ? { ...u, position: res.data.position } : u))
+            );
+            // 入力欄の表示もサーバー側の正規化後の値（空白のみ→nullなど）に合わせる。
+            // ただし保存中に入力欄が編集されていた場合（送信時のdraftと現在値が異なる）は
+            // 未保存の新しい編集を上書きしないよう、そのままにする
+            setPositionDrafts((prev) =>
+                (prev[targetUserId] ?? '') === submittedDraft
+                    ? { ...prev, [targetUserId]: res.data.position ?? '' }
+                    : prev
+            );
+        } catch (err) {
+            if (saveRequestSeqRef.current[targetUserId] !== seq) return;
+            setPositionError((prev) => ({
+                ...prev,
+                [targetUserId]: getErrorMessage(err, 'ポジションの保存に失敗しました'),
+            }));
+        } finally {
+            if (saveRequestSeqRef.current[targetUserId] === seq) {
+                setSavingUserIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(targetUserId);
+                    return next;
+                });
+            }
+        }
+    };
+
+    // 既存スタッフが使用しているポジション名の候補（入力補助用）
+    const positionSuggestions = Array.from(
+        new Set(usersInShop.map((u) => u.position).filter((p): p is string => !!p))
+    );
 
     // ----------------------------------------------------------------------
     // ★ ローディング/エラー表示
@@ -159,16 +219,23 @@ export default function ShopUsersPage() {
                     現在、<span className="font-semibold text-indigo-600">{usersInShop.length}</span> 名のスタッフが登録されています。
                 </p>
 
+                {/* ポジション候補（入力補助用） */}
+                <datalist id="position-suggestions">
+                    {positionSuggestions.map((p) => (
+                        <option key={p} value={p} />
+                    ))}
+                </datalist>
+
                 {/* 従業員リスト */}
                 <div className="space-y-3">
                     {usersInShop.map((shopUser) => (
-                        <div 
-                            key={shopUser.user_id} 
-                            className="p-4 border rounded-xl flex items-center justify-between shadow-sm bg-gray-50 hover:bg-white transition duration-200"
+                        <div
+                            key={shopUser.user_id}
+                            className="p-4 border rounded-xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shadow-sm bg-gray-50 hover:bg-white transition duration-200"
                         >
                             <div className="flex items-center">
                                 {/* アイコン (イニシャル) */}
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 font-bold text-lg text-white 
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 font-bold text-lg text-white
                                     ${shopUser.is_owner ? 'bg-indigo-600' : 'bg-gray-500'}`}
                                 >
                                     {shopUser.user_name.charAt(0)}
@@ -185,7 +252,7 @@ export default function ShopUsersPage() {
                                         オーナー
                                     </span>
                                 )}
-                                
+
                                 {/* 自分が表示されている場合に「あなた」と表示 */}
                                 {shopUser.user_id === user?.user_id && (
                                     <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-600 rounded-md">
@@ -193,6 +260,56 @@ export default function ShopUsersPage() {
                                     </span>
                                 )}
                             </div>
+
+                            {/* ポジション編集（管理者のみ） */}
+                            {isAdmin ? (
+                                <div className="sm:w-64">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            list="position-suggestions"
+                                            aria-label={`${shopUser.user_name}のポジション`}
+                                            aria-invalid={!!positionError[shopUser.user_id]}
+                                            aria-describedby={
+                                                positionError[shopUser.user_id]
+                                                    ? `position-error-${shopUser.user_id}`
+                                                    : undefined
+                                            }
+                                            value={positionDrafts[shopUser.user_id] ?? ''}
+                                            onChange={(e) =>
+                                                setPositionDrafts((prev) => ({
+                                                    ...prev,
+                                                    [shopUser.user_id]: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="未設定"
+                                            maxLength={50}
+                                            className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                        <button
+                                            onClick={() => handlePositionSave(shopUser.user_id)}
+                                            disabled={
+                                                savingUserIds.has(shopUser.user_id) ||
+                                                (positionDrafts[shopUser.user_id] ?? '') === (shopUser.position || '')
+                                            }
+                                            className="shrink-0 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:bg-gray-300 transition"
+                                        >
+                                            {savingUserIds.has(shopUser.user_id) ? '保存中...' : '保存'}
+                                        </button>
+                                    </div>
+                                    {positionError[shopUser.user_id] && (
+                                        <p id={`position-error-${shopUser.user_id}`} className="text-xs text-red-600 mt-1">
+                                            {positionError[shopUser.user_id]}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                shopUser.position && (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 self-start sm:self-auto">
+                                        {shopUser.position}
+                                    </span>
+                                )
+                            )}
                         </div>
                     ))}
                 </div>
