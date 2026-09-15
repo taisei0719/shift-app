@@ -117,6 +117,8 @@ export default function ShopUsersPage() {
             setUsersInShop((prev) =>
                 prev.map((u) => (u.user_id === targetUserId ? { ...u, position: res.data.position } : u))
             );
+            // 入力欄の表示もサーバー側の正規化後の値（空白のみ→nullなど）に合わせる
+            setPositionDrafts((prev) => ({ ...prev, [targetUserId]: res.data.position ?? '' }));
         } catch (err) {
             if (saveRequestSeqRef.current[targetUserId] !== seq) return;
             setPositionError((prev) => ({

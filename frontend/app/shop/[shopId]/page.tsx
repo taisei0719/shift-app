@@ -63,6 +63,8 @@ export default function ShopDetail() {
 
   // 設定ローディング
   const [configLoading, setConfigLoading] = useState(false);
+  // auto_adjust設定の取得が完了したか（失敗・未完了時に初期状態のまま保存してしまうのを防ぐ）
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -81,6 +83,7 @@ export default function ShopDetail() {
   // 自動調整設定の取得（スタッフ一覧の取得失敗が設定データを巻き込んで破棄しないよう、別リクエストとして扱う）
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
+    setConfigLoaded(false);
     api
       .get(`/shop/${shopId}/auto_adjust/config`)
       .then((res) => {
@@ -106,6 +109,7 @@ export default function ShopDetail() {
             setCloseHour(Math.max(...hours) + 1);
           }
         }
+        setConfigLoaded(true);
       })
       .catch(() => {});
   }, [shopId, isAdmin]);
@@ -432,11 +436,20 @@ export default function ShopDetail() {
             {/* 保存ボタン */}
             <button
               onClick={handleConfigSave}
-              disabled={configLoading}
+              disabled={configLoading || !configLoaded}
               className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md shadow-sm text-sm font-medium hover:bg-indigo-700 disabled:bg-gray-400 transition duration-150"
             >
-              {configLoading ? "保存中..." : "営業時間・定員を保存"}
+              {configLoading
+                ? "保存中..."
+                : !configLoaded
+                ? "設定を読み込み中..."
+                : "営業時間・定員を保存"}
             </button>
+            {!configLoaded && !configLoading && (
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                設定の取得が完了するまで保存できません。読み込みに失敗した場合はページを再読み込みしてください。
+              </p>
+            )}
 
             {/* 自動調整設定ページへのリンク */}
             <div className="mt-4 pt-4 border-t border-gray-100">
