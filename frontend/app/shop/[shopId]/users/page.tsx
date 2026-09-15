@@ -268,6 +268,7 @@ export default function ShopUsersPage() {
                                         <input
                                             type="text"
                                             list="position-suggestions"
+                                            aria-label={`${shopUser.user_name}のポジション`}
                                             value={positionDrafts[shopUser.user_id] ?? ''}
                                             onChange={(e) =>
                                                 setPositionDrafts((prev) => ({
