@@ -95,7 +95,13 @@ export default function ShopDetail() {
         // （定員>0の最小・最大時間。capacitiesが未設定/全て0の場合は保存済み営業時間を優先すべきため）
         const savedOpenHour = cfg.options?.open_hour;
         const savedCloseHour = cfg.options?.close_hour;
-        if (typeof savedOpenHour === "number" && typeof savedCloseHour === "number") {
+        const hasValidSavedHours =
+          Number.isInteger(savedOpenHour) &&
+          Number.isInteger(savedCloseHour) &&
+          savedOpenHour >= 0 &&
+          savedOpenHour < savedCloseHour &&
+          savedCloseHour <= 24;
+        if (hasValidSavedHours) {
           setOpenHour(savedOpenHour);
           setCloseHour(savedCloseHour);
         } else {
