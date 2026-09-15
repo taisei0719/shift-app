@@ -107,7 +107,9 @@ def admin_auto_adjust(date_str):
     priorities = cfg.priorities if cfg else {}
     capacities = cfg.capacities if cfg else {}
 
-    assignments, metrics = compute_auto_assignments(request_shifts, priorities, capacities)
+    assignments, metrics = compute_auto_assignments(
+        request_shifts, priorities, capacities, shop_id=user.shop_id
+    )
 
     if apply_flag:
         # DB更新: 指定ユーザーに対する既存シフトを削除して確定を追加する

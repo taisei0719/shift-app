@@ -1,4 +1,4 @@
-from models import AutoAdjustConfig, Shift
+from models import AutoAdjustConfig, Shift, ShiftRejectionHistory
 
 
 def test_submit_request_stamps_user_position(client, make_shop, make_user, auth_header, db_session):
@@ -78,6 +78,41 @@ def test_auto_adjust_respects_per_position_capacity(client, make_shop, make_user
     assert len(kitchen_assigned) == 1
     # hallは定員無制限のためhall1は採用される
     assert hall1_id in assigned_user_ids
+
+
+def test_auto_adjust_endpoint_uses_shop_scoped_rejection_history(client, make_shop, make_user, auth_header, db_session):
+    """admin_auto_adjustがcompute_auto_assignmentsにshop_idを渡すことで、
+    棄却履歴（rejection_rate_before）がシミュレーション結果に反映される（issue #89）。"""
+    shop = make_shop()
+    make_user(email="posadmin20@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="posstaff20@example.com", password="password123", role="staff", shop=shop)
+    staff_id = staff.id
+    shop_id = shop.id
+
+    # 過去に4回中1回しか採用されていない（棄却率0.75）の履歴
+    history = ShiftRejectionHistory(
+        user_id=staff_id, shop_id=shop_id, total_requests=4, total_accepted=1, reset_mode="manual"
+    )
+    db_session.add(history)
+    db_session.commit()
+
+    staff_headers = auth_header("posstaff20@example.com", "password123")
+    client.post(
+        "/api/shifts/submit_request",
+        headers=staff_headers,
+        json={"requests": [{"date": "2026-10-01", "start": "10:00", "end": "11:00"}]},
+    )
+
+    admin_headers = auth_header("posadmin20@example.com", "password123")
+    res = client.post(
+        "/api/admin/shifts/auto_adjust/2026-10-01",
+        headers=admin_headers,
+        json={"apply": False},
+    )
+
+    assert res.status_code == 200
+    users_metrics = res.get_json()["metrics"]["users"]
+    assert users_metrics[str(staff_id)]["rejection_rate_before"] == 0.75
 
 
 def test_auto_adjust_honors_legacy_flat_capacities(client, make_shop, make_user, auth_header, db_session):
