@@ -1,3 +1,6 @@
+from models import User
+
+
 def test_register_success(client):
     res = client.post(
         "/api/register",
@@ -14,6 +17,38 @@ def test_register_missing_fields(client):
     res = client.post("/api/register", json={"name": "Taro"})
 
     assert res.status_code == 400
+
+
+def test_register_rejects_disallowed_role(client):
+    res = client.post(
+        "/api/register",
+        json={
+            "name": "Rogue",
+            "email": "rogue@example.com",
+            "password": "password123",
+            "role": "superadmin",
+        },
+    )
+
+    assert res.status_code == 400
+    assert User.query.filter_by(email="rogue@example.com").first() is None
+
+
+def test_register_allows_self_registering_as_admin(client):
+    """/api/shop_registerがrole=adminかつshop_id未設定のユーザーのみ許可するため、
+    新規店舗オーナーとして始めるにはrole=adminでの自己登録が唯一の導線として意図的に許可されている。"""
+    res = client.post(
+        "/api/register",
+        json={
+            "name": "NewOwner",
+            "email": "newowner@example.com",
+            "password": "password123",
+            "role": "admin",
+        },
+    )
+
+    assert res.status_code == 201
+    assert res.get_json()["user"]["role"] == "admin"
 
 
 def test_register_duplicate_email(client, make_user):
