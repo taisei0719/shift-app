@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, date, time
 import random
 from dotenv import load_dotenv
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
+from sqlalchemy.exc import SQLAlchemyError
 import time as pytime
 import math
 from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
