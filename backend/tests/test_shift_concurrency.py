@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-import app as app_module
 from blueprints import shifts as shifts_module
+from blueprints import auto_adjust as auto_adjust_module
 
 
 def test_confirm_shifts_returns_409_on_lock_conflict(client, make_shop, make_user, auth_header):
@@ -36,7 +36,7 @@ def test_auto_adjust_apply_returns_409_on_lock_conflict(client, make_shop, make_
     make_user(email="lockadmin2@example.com", password="password123", role="admin", shop=shop)
     admin_headers = auth_header("lockadmin2@example.com", "password123")
 
-    with patch.object(app_module, "acquire_shop_shift_lock", side_effect=app_module.ShiftLockConflict()):
+    with patch.object(auto_adjust_module, "acquire_shop_shift_lock", side_effect=auto_adjust_module.ShiftLockConflict()):
         res = client.post(
             "/api/admin/shifts/auto_adjust/2026-10-01",
             headers=admin_headers,
@@ -53,7 +53,7 @@ def test_auto_adjust_simulation_does_not_acquire_lock(client, make_shop, make_us
     make_user(email="lockadmin3@example.com", password="password123", role="admin", shop=shop)
     admin_headers = auth_header("lockadmin3@example.com", "password123")
 
-    with patch.object(app_module, "acquire_shop_shift_lock", side_effect=app_module.ShiftLockConflict()) as mocked_lock:
+    with patch.object(auto_adjust_module, "acquire_shop_shift_lock", side_effect=auto_adjust_module.ShiftLockConflict()) as mocked_lock:
         res = client.post(
             "/api/admin/shifts/auto_adjust/2026-10-01",
             headers=admin_headers,
