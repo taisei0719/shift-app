@@ -1,6 +1,8 @@
 # backend/services/shift_lock.py
 # 店舗単位のシフト確定・自動調整の排他制御。shiftsドメイン・auto_adjustドメインの両方から使われる。
 
+import sqlite3
+
 from models import db, AutoAdjustConfig
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -14,6 +16,22 @@ class ShiftLockConflict(Exception):
 # 参考: https://www.postgresql.org/docs/current/errcodes-appendix.html
 _POSTGRES_LOCK_NOT_AVAILABLE = "55P03"
 
+# SQLiteのプライマリ結果コード（拡張コードは下位1バイトにこれらの値を含む）。
+# 参考: https://www.sqlite.org/rescode.html
+_SQLITE_BUSY = 5
+_SQLITE_LOCKED = 6
+
+
+def _is_sqlite_lock_error(error) -> bool:
+    """sqlite3.Error（開発/テスト環境）が真のロック競合（BUSY/LOCKED、拡張コード含む）かどうかを判定する。
+    同じ文言のメッセージを持つ非sqlite3例外まで誤って対象にしないよう、型そのものも確認する。"""
+    if not isinstance(error, sqlite3.Error):
+        return False
+    code = getattr(error, "sqlite_errorcode", None)
+    if code is None:
+        return False
+    return (code & 0xFF) in (_SQLITE_BUSY, _SQLITE_LOCKED)
+
 
 def _is_lock_conflict(error: OperationalError) -> bool:
     """
@@ -25,10 +43,7 @@ def _is_lock_conflict(error: OperationalError) -> bool:
     orig = getattr(error, "orig", None)
     if getattr(orig, "pgcode", None) == _POSTGRES_LOCK_NOT_AVAILABLE:
         return True
-    # SQLite（開発/テスト環境）はNOWAIT相当のSQLSTATEを持たないため、
-    # sqlite3が返すエラーメッセージで判定する
-    message = str(orig if orig is not None else error).lower()
-    return "database is locked" in message
+    return _is_sqlite_lock_error(orig)
 
 
 def acquire_shop_shift_lock(shop_id: int) -> None:

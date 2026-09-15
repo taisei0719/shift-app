@@ -1,3 +1,4 @@
+import sqlite3
 from unittest.mock import patch
 
 import pytest
@@ -46,9 +47,10 @@ def test_acquire_lock_reraises_on_unrelated_operational_error(app, make_shop):
 
 
 def test_acquire_lock_raises_conflict_on_sqlite_database_locked(app, make_shop):
-    """SQLite（開発/テスト環境）はSQLSTATEを持たないため、メッセージで判定する。"""
+    """SQLite（開発/テスト環境）はSQLSTATEを持たないため、sqlite3.Errorのエラーコードで判定する。"""
     shop = make_shop()
-    orig = Exception("database is locked")
+    orig = sqlite3.OperationalError("database is locked")
+    orig.sqlite_errorcode = 5  # SQLITE_BUSY
 
     with patch(
         "services.shift_lock.AutoAdjustConfig.query"
@@ -57,4 +59,20 @@ def test_acquire_lock_raises_conflict_on_sqlite_database_locked(app, make_shop):
         mocked_query.filter_by.return_value.with_for_update.return_value.one.side_effect = _make_operational_error(orig)
 
         with pytest.raises(ShiftLockConflict):
+            acquire_shop_shift_lock(shop.id)
+
+
+def test_acquire_lock_reraises_non_sqlite_exception_with_locked_message(app, make_shop):
+    """sqlite3.Error以外の例外が偶然"database is locked"を含んでいても、
+    ロック競合とは判定せず再送出する（実際のDB障害を隠さないため）。"""
+    shop = make_shop()
+    orig = RuntimeError("database is locked")
+
+    with patch(
+        "services.shift_lock.AutoAdjustConfig.query"
+    ) as mocked_query:
+        mocked_query.filter_by.return_value.first.return_value = object()
+        mocked_query.filter_by.return_value.with_for_update.return_value.one.side_effect = _make_operational_error(orig)
+
+        with pytest.raises(OperationalError):
             acquire_shop_shift_lock(shop.id)
