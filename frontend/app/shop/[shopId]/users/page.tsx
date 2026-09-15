@@ -1,7 +1,7 @@
 // frontend/app/shop/[shopId]/users/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useUser } from '@/app/context/UserContext';
 import { api, getErrorMessage } from '@/lib/api';
@@ -38,10 +38,12 @@ export default function ShopUsersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // ポジション編集用のドラフト値・保存状態
+    // ポジション編集用のドラフト値・保存状態（ユーザーIDごとに独立して管理する）
     const [positionDrafts, setPositionDrafts] = useState<Record<number, string>>({});
-    const [savingUserId, setSavingUserId] = useState<number | null>(null);
+    const [savingUserIds, setSavingUserIds] = useState<Set<number>>(new Set());
     const [positionError, setPositionError] = useState<Record<number, string>>({});
+    // ユーザーIDごとの最新リクエスト番号（同一ユーザーへの連続保存で古いレスポンスが後勝ちしないようにする）
+    const saveRequestSeqRef = useRef<Record<number, number>>({});
 
     // 認証とデータ取得
     useEffect(() => {  
@@ -102,22 +104,33 @@ export default function ShopUsersPage() {
     // ポジション保存
     const handlePositionSave = async (targetUserId: number) => {
         const draft = (positionDrafts[targetUserId] ?? '').trim();
-        setSavingUserId(targetUserId);
+        const seq = (saveRequestSeqRef.current[targetUserId] ?? 0) + 1;
+        saveRequestSeqRef.current[targetUserId] = seq;
+        setSavingUserIds((prev) => new Set(prev).add(targetUserId));
         setPositionError((prev) => ({ ...prev, [targetUserId]: '' }));
         try {
             const res = await api.patch(`/shops/${shopId}/users/${targetUserId}/position`, {
                 position: draft || null,
             });
+            // このユーザーに対して後から送信されたリクエストがあれば、古いレスポンスは無視する
+            if (saveRequestSeqRef.current[targetUserId] !== seq) return;
             setUsersInShop((prev) =>
                 prev.map((u) => (u.user_id === targetUserId ? { ...u, position: res.data.position } : u))
             );
         } catch (err) {
+            if (saveRequestSeqRef.current[targetUserId] !== seq) return;
             setPositionError((prev) => ({
                 ...prev,
                 [targetUserId]: getErrorMessage(err, 'ポジションの保存に失敗しました'),
             }));
         } finally {
-            setSavingUserId(null);
+            if (saveRequestSeqRef.current[targetUserId] === seq) {
+                setSavingUserIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(targetUserId);
+                    return next;
+                });
+            }
         }
     };
 
@@ -260,12 +273,12 @@ export default function ShopUsersPage() {
                                         <button
                                             onClick={() => handlePositionSave(shopUser.user_id)}
                                             disabled={
-                                                savingUserId === shopUser.user_id ||
+                                                savingUserIds.has(shopUser.user_id) ||
                                                 (positionDrafts[shopUser.user_id] ?? '') === (shopUser.position || '')
                                             }
                                             className="shrink-0 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:bg-gray-300 transition"
                                         >
-                                            {savingUserId === shopUser.user_id ? '保存中...' : '保存'}
+                                            {savingUserIds.has(shopUser.user_id) ? '保存中...' : '保存'}
                                         </button>
                                     </div>
                                     {positionError[shopUser.user_id] && (

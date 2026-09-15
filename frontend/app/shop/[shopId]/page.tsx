@@ -78,31 +78,45 @@ export default function ShopDetail() {
       .catch(() => setShop(null));
   }, [shopId]);
 
-  // 自動調整設定・スタッフのポジション一覧を取得
+  // 自動調整設定の取得（スタッフ一覧の取得失敗が設定データを巻き込んで破棄しないよう、別リクエストとして扱う）
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
-    Promise.all([
-      api.get(`/shop/${shopId}/auto_adjust/config`),
-      api.get(`/shops/${shopId}/users`),
-    ])
-      .then(([cfgRes, usersRes]) => {
-        const cfg = cfgRes.data.config;
+    api
+      .get(`/shop/${shopId}/auto_adjust/config`)
+      .then((res) => {
+        const cfg = res.data.config;
         const caps = normalizeCapacities(cfg.capacities);
         setCapacities(caps);
 
-        // 営業時間を全ポジションのcapacitiesから推定（定員>0の最小・最大時間）
-        const hours = Object.values(caps).flatMap((posCaps) =>
-          Object.keys(posCaps)
-            .map(Number)
-            .filter((h) => posCaps[String(h)] > 0)
-        );
-        if (hours.length > 0) {
-          setOpenHour(Math.min(...hours));
-          setCloseHour(Math.max(...hours) + 1);
+        // 営業時間は保存済みのoptionsを優先し、なければ全ポジションのcapacitiesから推定する
+        // （定員>0の最小・最大時間。capacitiesが未設定/全て0の場合は保存済み営業時間を優先すべきため）
+        const savedOpenHour = cfg.options?.open_hour;
+        const savedCloseHour = cfg.options?.close_hour;
+        if (typeof savedOpenHour === "number" && typeof savedCloseHour === "number") {
+          setOpenHour(savedOpenHour);
+          setCloseHour(savedCloseHour);
+        } else {
+          const hours = Object.values(caps).flatMap((posCaps) =>
+            Object.keys(posCaps)
+              .map(Number)
+              .filter((h) => posCaps[String(h)] > 0)
+          );
+          if (hours.length > 0) {
+            setOpenHour(Math.min(...hours));
+            setCloseHour(Math.max(...hours) + 1);
+          }
         }
+      })
+      .catch(() => {});
+  }, [shopId, isAdmin]);
 
-        // スタッフに設定済みのポジション一覧（タブ表示用、重複除去）
-        const users: StaffUser[] = usersRes.data.users || [];
+  // スタッフに設定済みのポジション一覧の取得（タブ表示用）
+  useEffect(() => {
+    if (!shopId || shopId === "unknown" || !isAdmin) return;
+    api
+      .get(`/shops/${shopId}/users`)
+      .then((res) => {
+        const users: StaffUser[] = res.data.users || [];
         const positions = Array.from(
           new Set(users.map((u) => u.position).filter((p): p is string => !!p))
         );
