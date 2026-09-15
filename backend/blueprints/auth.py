@@ -16,6 +16,12 @@ from models import db, User, Shift
 
 auth_bp = Blueprint("auth", __name__)
 
+# 自己登録時に指定できるroleのホワイトリスト。
+# 'admin'は「新規店舗のオーナーとして始める」ための唯一の導線であり意図的に許可しているが
+# （/api/shop_registerはrole=adminかつshop_id未設定のユーザーのみ許可）、
+# それ以外の任意文字列（将来 role!=shop_id チェックのみで権限判定する処理が増えた場合に危険）は拒否する。
+ALLOWED_SELF_REGISTER_ROLES = {"staff", "admin"}
+
 
 # -------------------- API: ユーザー登録 --------------------
 @auth_bp.route("/api/register", methods=["POST"])
@@ -27,6 +33,8 @@ def register():
     password = data.get("password")
     role = data.get("role", "staff") # 登録時には role は 'staff' などのデフォルト値が設定されることを想定
 
+    if role not in ALLOWED_SELF_REGISTER_ROLES:
+        return jsonify({"error": "roleの指定が不正です"}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "そのメールアドレスは既に登録済みです"}), 400
     if not name or not email or not password:
