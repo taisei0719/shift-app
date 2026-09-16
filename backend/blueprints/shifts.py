@@ -246,15 +246,28 @@ def confirm_shifts():
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     confirmed_shifts_data = data.get("confirmed_shifts", [])
 
-    if (
-        not isinstance(confirmed_shifts_data, list)
-        or not confirmed_shifts_data
-        or not all(
-            isinstance(shift, dict) and isinstance(shift.get("shift_date"), str)
-            for shift in confirmed_shifts_data
-        )
-    ):
+    if not isinstance(confirmed_shifts_data, list) or not confirmed_shifts_data:
         return jsonify({"error": "確定シフトデータがありません"}), 400
+
+    # 各エントリのuser_id/start_time/end_time/shift_dateを事前に検証する。
+    # 検証しないと、後続のtarget_user_ids生成時のKeyErrorや不正な時刻文字列の
+    # strptime失敗で500になったり、shift_dateが混在した場合に最初のエントリの
+    # 日付が他エントリにも誤って適用されてしまう。
+    parsed_dates = set()
+    for shift in confirmed_shifts_data:
+        if not isinstance(shift, dict):
+            return jsonify({"error": "確定シフトデータの形式が不正です"}), 400
+        if not isinstance(shift.get("user_id"), int) or isinstance(shift.get("user_id"), bool):
+            return jsonify({"error": "確定シフトデータの形式が不正です"}), 400
+        try:
+            datetime.strptime(shift.get("start_time") or "", '%H:%M')
+            datetime.strptime(shift.get("end_time") or "", '%H:%M')
+            parsed_dates.add(datetime.strptime(shift.get("shift_date") or "", '%Y-%m-%d').date())
+        except (TypeError, ValueError):
+            return jsonify({"error": "確定シフトデータの形式が不正です"}), 400
+
+    if len(parsed_dates) != 1:
+        return jsonify({"error": "確定シフトデータの日付を統一してください"}), 400
 
     try:
         acquire_shop_shift_lock(shop_id)
@@ -262,8 +275,8 @@ def confirm_shifts():
         return jsonify({"error": "他の管理者がシフト確定処理中です。しばらくしてから再度お試しください。"}), 409
 
     try:
-        date_str = confirmed_shifts_data[0]['shift_date']
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        target_date = parsed_dates.pop()
+        date_str = target_date.strftime('%Y-%m-%d')
         target_user_ids = [shift['user_id'] for shift in confirmed_shifts_data]
 
         # ★ 削除前にリクエストを提出していたユーザーIDを全て取得

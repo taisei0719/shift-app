@@ -1,3 +1,6 @@
+from models import Shift
+
+
 def test_submit_shift_requires_auth(client):
     res = client.post("/api/shifts/submit_request", json={"requests": []})
 
@@ -159,6 +162,47 @@ def test_admin_confirm_rejects_non_dict_confirmed_shift_entry(client, make_shop,
     )
 
     assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_entry_missing_user_id(client, make_shop, make_user, auth_header):
+    """shift_dateしか無いエントリは、target_user_ids生成時のKeyErrorで500にならず
+    400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff7@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff7@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={"confirmed_shifts": [{"shift_date": "2026-10-01"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_mixed_shift_dates(client, make_shop, make_user, auth_header, db_session):
+    """confirmed_shiftsの各エントリでshift_dateが異なる場合、最初のエントリの日付が
+    他のエントリにも誤って適用されてしまうデータ不整合を防ぐため400を返すことを
+    確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff8@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="staff9@example.com", password="password123", role="staff", shop=shop)
+    staff_id = staff.id
+    headers = auth_header("staff8@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={
+            "confirmed_shifts": [
+                {"user_id": staff_id, "shift_date": "2026-10-01", "start_time": "09:00", "end_time": "17:00"},
+                {"user_id": staff_id, "shift_date": "2026-10-02", "start_time": "09:00", "end_time": "17:00"},
+            ]
+        },
+    )
+
+    assert res.status_code == 400
+    assert Shift.query.filter_by(user_id=staff_id, shift_type="confirmed").count() == 0
 
 
 def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):
