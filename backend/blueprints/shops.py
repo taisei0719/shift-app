@@ -259,6 +259,9 @@ def switch_active_shop():
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     shop_id = data.get("shop_id")
+    # boolはintのサブクラスのため明示的に除外する
+    if not isinstance(shop_id, int) or isinstance(shop_id, bool):
+        return jsonify({"error": "shop_idは整数で指定してください"}), 400
 
     # 所属している（user_shopsに登録済みの）店舗以外への切替は許可しない
     membership = UserShop.query.filter_by(user_id=user_id, shop_id=shop_id).first()

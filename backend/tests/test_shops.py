@@ -323,6 +323,26 @@ def test_switch_active_shop_requires_auth(client):
     assert res.status_code == 401
 
 
+def test_switch_active_shop_rejects_non_integer_shop_id(client, make_user, auth_header):
+    """shop_idが非整数（辞書・配列等）の場合、DBクエリに渡す前に400で拒否する（issue #104）。"""
+    make_user(email="switch3@example.com", password="password123", role="staff", shop=None)
+    headers = auth_header("switch3@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": {"nested": "object"}})
+
+    assert res.status_code == 400
+
+
+def test_switch_active_shop_rejects_boolean_shop_id(client, make_user, auth_header):
+    """boolはintのサブクラスのため、暗黙変換されてしまわないよう明示的に拒否する（issue #104）。"""
+    make_user(email="switch4@example.com", password="password123", role="staff", shop=None)
+    headers = auth_header("switch4@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": True})
+
+    assert res.status_code == 400
+
+
 def test_get_shop_detail_success(client, make_shop, make_user, auth_header):
     shop = make_shop()
     make_user(email="shopdetail1@example.com", password="password123", role="staff", shop=shop)
