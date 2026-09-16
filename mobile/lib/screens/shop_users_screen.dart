@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/auth_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +13,15 @@ class ShopUsersScreen extends ConsumerStatefulWidget {
   ConsumerState<ShopUsersScreen> createState() => _ShopUsersScreenState();
 }
 
+// ポジション関連の予約語（backendのUNSPECIFIED_POSITIONと一致させる）
+const _unspecifiedPositionValue = 'unspecified';
+
 class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
   bool isLoading = true;
   String? error;
   List<dynamic> users = [];
   Map<String, dynamic>? shopData;
+  bool get _isAdmin => ref.read(authProvider).value?.role == 'admin';
 
   @override
   void initState() {
@@ -44,6 +49,74 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
         error = '従業員データの取得に失敗しました';
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _editPosition(Map<String, dynamic> userItem) async {
+    final controller = TextEditingController(text: userItem['position'] ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        String? dialogError;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: Text('${userItem['user_name']} のポジション'),
+            content: TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: '例: kitchen（空欄で未設定）',
+                errorText: dialogError,
+              ),
+              maxLength: 50,
+              maxLengthEnforcement: MaxLengthEnforcement.none,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('キャンセル'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final value = controller.text.trim();
+                  if (value.length > 50) {
+                    setDialogState(() {
+                      dialogError = 'ポジション名は50文字以内で入力してください';
+                    });
+                    return;
+                  }
+                  if (value == _unspecifiedPositionValue) {
+                    setDialogState(() {
+                      dialogError = '"$_unspecifiedPositionValue" は予約語のため指定できません';
+                    });
+                    return;
+                  }
+                  Navigator.pop(dialogContext, value);
+                },
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null || !mounted) return;
+
+    try {
+      final newPosition = await ref.read(authProvider.notifier).updateUserPosition(
+            widget.shopId!,
+            userItem['user_id'] as int,
+            result.isEmpty ? null : result,
+          );
+      if (!mounted) return;
+      setState(() {
+        userItem['position'] = newPosition;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
     }
   }
 
@@ -143,16 +216,33 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
         itemCount: users.length,
         itemBuilder: (context, idx) {
           final userItem = users[idx];
+          final position = userItem['position'] as String?;
           return ListTile(
             leading: CircleAvatar(
               child: Text(userItem['user_name'].toString().substring(0, 1)),
               backgroundColor: userItem['is_owner'] ? Colors.indigo : Colors.grey,
             ),
             title: Text(userItem['user_name']),
-            subtitle: Text(userItem['role'] == 'admin' ? 'オーナー' : 'スタッフ'),
-            trailing: userItem['is_owner']
-                ? const Chip(label: Text('オーナー'), backgroundColor: Colors.yellow)
-                : null,
+            subtitle: Text(
+              '${userItem['role'] == 'admin' ? 'オーナー' : 'スタッフ'}'
+              '${position != null && position.isNotEmpty ? ' ・ $position' : ' ・ ポジション未設定'}',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (userItem['is_owner'])
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: Chip(label: Text('オーナー'), backgroundColor: Colors.yellow),
+                  ),
+                if (_isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'ポジションを編集',
+                    onPressed: () => _editPosition(userItem),
+                  ),
+              ],
+            ),
           );
         },
       ),
