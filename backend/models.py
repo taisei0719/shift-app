@@ -77,6 +77,29 @@ class AutoAdjustConfig(db.Model):
     shop = db.relationship('Shop', backref=db.backref('auto_adjust_config', uselist=False))
 
 
+# -------------------- 複数店舗所属（PBI #7） --------------------
+class UserShop(db.Model):
+    """
+    ユーザーと店舗の所属関係（多対多）。
+    User.shop_idは「現在アクティブな店舗」を指す後方互換フィールドとして維持し、
+    実際の所属関係（同時に複数店舗へ所属できる）はこのテーブルで管理する。
+    """
+    __tablename__ = 'user_shops'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('user_shops', lazy=True))
+    shop = db.relationship('Shop', backref=db.backref('user_shops', lazy=True))
+
+    # 同じ(user_id, shop_id)の組み合わせは1レコードのみ
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'shop_id', name='_user_shop_membership_uc'),
+    )
+
+
 # -------------------- 新規追加: 棄却履歴テーブル --------------------
 class ShiftRejectionHistory(db.Model):
     """

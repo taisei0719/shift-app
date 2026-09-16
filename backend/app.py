@@ -15,6 +15,7 @@ from flask_jwt_extended import JWTManager
 import sentry_sdk
 
 from extensions import limiter
+from services.user_shops import backfill_user_shops
 
 load_dotenv()
 
@@ -184,7 +185,7 @@ def wait_for_db():
 def init_db():
     with app.app_context():
         db.create_all()
-        
+
         # teststore1の追加
         shop = Shop.query.filter_by(name='teststore1').first()
         if not shop:
@@ -218,6 +219,11 @@ def init_db():
             db.session.add_all(staff_list)
 
         db.session.commit()
+
+        # 既存のUser.shop_id（アクティブ店舗）をuser_shopsへバックフィルする（冪等）。
+        # 上のデモユーザー作成・コミットより後に実行しないと、まっさらなDBでは
+        # デモadmin/staffがuser_shopsに登録されないまま初回起動が完了してしまう。
+        backfill_user_shops()
 
         # デモ用シフト希望の追加（まだシフトが登録されていない場合）
         if Shift.query.filter_by(shop_id=shop.id).count() == 0:
