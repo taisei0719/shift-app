@@ -1,3 +1,4 @@
+from app import init_db
 from models import User, UserShop
 from services.user_shops import backfill_user_shops, ensure_user_shop_membership
 
@@ -51,6 +52,19 @@ def test_backfill_user_shops_is_idempotent(app, make_shop, make_user):
     assert first_run == 1
     assert second_run == 0
     assert UserShop.query.filter_by(user_id=user.id, shop_id=shop.id).count() == 1
+
+
+def test_init_db_on_fresh_database_backfills_demo_users(app):
+    """まっさらなDB（デモユーザーも未作成）でinit_db()を実行した場合、
+    その場で作成されるデモadmin/staffもuser_shopsへ登録される（issue #101 CodeRabbit指摘）。"""
+    assert User.query.count() == 0
+
+    init_db()
+
+    demo_users = User.query.filter(User.name.in_(["admin", "yamada"])).all()
+    assert len(demo_users) == 2
+    for user in demo_users:
+        assert UserShop.query.filter_by(user_id=user.id, shop_id=user.shop_id).first() is not None
 
 
 def test_shop_register_creates_user_shop_membership(client, make_user, auth_header):
