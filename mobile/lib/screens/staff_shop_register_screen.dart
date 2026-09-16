@@ -85,6 +85,14 @@ class _StaffShopRegisterScreenState extends ConsumerState<StaffShopRegisterScree
                   const Text('店舗への参加リクエスト', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   const Text('オーナーの承認を得るために、店舗コードを入力してください。', style: TextStyle(fontSize: 14)),
+                  if (user?.shopName != null && user!.shopName!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '現在の所属店舗: ${user.shopName}（別の店舗にも参加リクエストを送れます。承認されてもアクティブ店舗は変わりません）',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   if (message.isNotEmpty)
                     Text(
