@@ -17,6 +17,7 @@ class User(db.Model):
     shop = db.relationship("Shop", backref="users", uselist=False)   
     shop_request_code = db.Column(db.String(32), nullable=True)
     total_priority = db.Column(db.Integer, default=3, nullable=False)
+    position = db.Column(db.String(50), nullable=True)
 
 
 class Shift(db.Model):
@@ -27,7 +28,9 @@ class Shift(db.Model):
     shift_date = db.Column(db.Date, nullable=False)
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
-    shift_type = db.Column(db.String(20), nullable=False, default='request') 
+    shift_type = db.Column(db.String(20), nullable=False, default='request')
+    # シフト作成時点でのUser.positionをスナップショットする（後でUserのpositionが変わっても過去の記録は変わらない）
+    position = db.Column(db.String(50), nullable=True)
     user = db.relationship('User', backref=db.backref('shifts', lazy=True))
 
     def to_dict(self):
@@ -39,6 +42,7 @@ class Shift(db.Model):
             'start_time': self.start_time.strftime('%H:%M'),
             'end_time': self.end_time.strftime('%H:%M'),
             'shift_type': self.shift_type,
+            'position': self.position,
             'user_name': self.user.name,
         }
 
@@ -71,6 +75,29 @@ class AutoAdjustConfig(db.Model):
     options = db.Column(JSON, nullable=True)
 
     shop = db.relationship('Shop', backref=db.backref('auto_adjust_config', uselist=False))
+
+
+# -------------------- 複数店舗所属（PBI #7） --------------------
+class UserShop(db.Model):
+    """
+    ユーザーと店舗の所属関係（多対多）。
+    User.shop_idは「現在アクティブな店舗」を指す後方互換フィールドとして維持し、
+    実際の所属関係（同時に複数店舗へ所属できる）はこのテーブルで管理する。
+    """
+    __tablename__ = 'user_shops'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('user_shops', lazy=True))
+    shop = db.relationship('Shop', backref=db.backref('user_shops', lazy=True))
+
+    # 同じ(user_id, shop_id)の組み合わせは1レコードのみ
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'shop_id', name='_user_shop_membership_uc'),
+    )
 
 
 # -------------------- 新規追加: 棄却履歴テーブル --------------------

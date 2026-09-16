@@ -9,6 +9,7 @@ shift-appの開発は、プロダクトバックログを **PBI → SBI** に分
 
 - **PBI (Product Backlog Item)**: ユーザーに価値をもたらす機能単位。README「今後の実装予定」やヒアリングから積む。ブランチは持たない。
 - **SBI (Sprint Backlog Item)**: PBIをスプリントで実行可能な粒度（半日〜数日）に分解した実装タスク。**1 SBI = 1ブランチ = 1PR** で完結させる。
+  - **PRの変更行数の目安は500行程度**。backendとfrontendの両方に変更が及ぶ場合、それぞれ独立して動作確認・レビューできるなら別々のSBIに分ける（実際にSentry導入で+2290行の1 PRになった反省を踏まえる）。1つのSBIでどうしても両方に手を入れる必要がある場合（密結合な機能など）は、その理由をSBIのタスク内容に明記する。
 
 PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する（`.github/ISSUE_TEMPLATE/` のテンプレートを使うと自動付与される）。
 
@@ -18,8 +19,8 @@ PBI issueには `type:pbi`、SBI issueには `type:sbi` ラベルを付与する
 2. **スプリントプランニング**: PBIをSBIに分解する。分解の壁打ちにClaudeを使ってよい（AIDLCの「Intent capture → Unit-level design」フェーズ）。各SBIは `[SBI] ` テンプレートで起票し、親PBI番号を紐づける。PBI側の「関連SBI」欄にもチェックリストとして追記する。
 3. **ブランチ作成**: 最新化した `develop`（後述7を終えた状態）から、SBI issueに対応する `{issue番号}-{kebab-caseの概要}` の名前でブランチを切る（例: `13-position-capacity`）。古いブランチのHEADから続けて切ると履歴が枝分かれしたまま進むため避ける。作成したら `git push -u origin <branch>` で即座にリモートにも同名ブランチを作成し、upstreamを設定する（後続のpushで都度 `-u` を付け直さずに済む）。
 4. **実装**: Claude Codeとのペアプロで実装を進める。SBIのDefinition of Doneを満たすまで作業する。
-5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・push毎に、リポジトリのRulesetによりGitHub Copilot code reviewが自動でレビューコメントを投稿する（4章）。
-6. **人間レビュー**: Copilotの自動レビューコメント（必要なら `/code-review` の深掘りレビューも）を確認し、必要な修正を行う。人間のレビュアーが最終承認する。
+5. **PR作成**: SBIブランチから **`develop` 向けに** `.github/pull_request_template.md` に従い、`Closes #<SBI番号>` を含めてPRを作成する。PR作成・更新のたびに、CodeRabbitが自動でレビューコメントを投稿する（4章）。
+6. **人間レビュー**: CodeRabbitの自動レビューコメント（必要なら `/code-review` の深掘りレビューも）を確認し、必要な修正を行う。人間のレビュアーが最終承認する。
 7. **マージ後の後始末**: `develop` にマージする（マージ自体はGitHub上で完結する）。マージが確認できたら、必ず以下を行ってから次のSBIに進む。
    - ローカルで `git checkout develop && git pull` し、リモートに追従させる（**ローカルで改めて `git merge` する必要はない**。GitHub側で既にマージ済みのため、pullでfast-forwardするだけでよい）。これを飛ばすとローカルの`develop`だけ取り残され、次のブランチを古い地点から切ってしまう。
    - リモートのSBIブランチはリポジトリ設定 `Automatically delete head branches`（ON済み）によりマージ後に自動削除される。ローカルのSBIブランチは `git branch -d <branch>` で手動削除する。
@@ -41,12 +42,15 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 
 ## 4. 自動レビュー
 
-- **一次レビュー（自動・PR作成時の1回のみ）**: GitHub Copilot code reviewを使う。リポジトリのRuleset（`develop`ブランチ向け、`copilot_code_review`ルール）で、PR作成時に自動でレビューされるよう設定済み。GitHub Education（学生特典）のCopilot Studentプランで利用でき、月200 AI Creditsの枠内で動く（1レビューあたり約13クレジット消費するため、`review_on_push`はOFFにしてpush毎の再レビューを止めている。無条件に誰でも使えるわけではなく、GitHub Educationの学生認定が前提）。
-- **再レビュー・深掘りレビュー（手動）**: 修正後にもう一度Copilotレビューが欲しい場合はPRの「Reviewers」からCopilotを手動リクエストする。より深いレビューが欲しい場合は以下のいずれかを使う。
+- **一次レビュー（自動・PRごと）**: [CodeRabbit](https://coderabbit.ai)を使う。GitHub Appとして`shift-app`（public repo）に導入済みで、`.coderabbit.yaml`の設定で`develop`向けPRも含めPR作成・更新時に自動でレビューコメントが付く。publicリポジトリは無料のOSSプランが使えるが、**無制限ではなくレート制限がある**（実際に短時間で連続pushした際「Review limit reached, next included review available in 33 minutes」という制限に到達したことを確認済み）。制限に達した場合は待つか、下記の手動レビューで代替する。正確な条件は[公式プランページ](https://docs.coderabbit.ai/management/plans#rate-limits)を参照。
+  - CodeRabbitは「PR作成」「（自動レビューが有効な間の）pushのたび」「`@coderabbitai review`の明示実行」それぞれを1回のレビューとしてカウントする。OSSプランのPRレビュー制限は開発者単位かつリポジトリ単位でスコープされ、リポジトリのスター数に応じて1〜10回/時間と少なく、修正→再push を繰り返す開発スタイルだとすぐ枯渇する。
+  - これを緩和するため、`.coderabbit.yaml`で`auto_pause_after_reviewed_commits: 1`を設定している。初回のレビューが付いた後は自動レビューが一時停止し、以降の修正pushはレビューとしてカウントされない。マージ前に最終確認したい時だけPRコメントで`@coderabbitai review`（差分のみ）または`@coderabbitai full review`（全体）を実行して手動トリガーする。
+- **GitHub Copilot code review**: 自動トリガーのRulesetは無効化済み（設定自体は残してあり再有効化も可能）。必要な時だけPRの「Reviewers」から手動リクエストする（GitHub Education Copilot Studentプラン、月200 AI Creditsの枠内で消費）。
+- **深掘りレビュー（手動）**: より深いレビューが欲しい場合は以下のいずれかを使う。
   - Claude Codeで `/code-review` （高効果度が必要な場合は `ultra`）を実行する。
   - `.github/workflows/claude-code-review.yml` をActionsタブから手動実行（`workflow_dispatch`、対象PR番号を入力）する。認証はClaude Pro/MaxのOAuthトークン（`claude setup-token` で発行し `CLAUDE_CODE_OAUTH_TOKEN` としてリポジトリSecretsに登録）を使用する。
-- `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。従量課金の `ANTHROPIC_API_KEY` 方式への切り替えも選択肢としてはあるが、Copilotが無料で使える間はそちらを優先する。
-- どちらのレビューもコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
+- `claude-code-review.yml` は元々PR作成のたびに自動実行していたが、Claude Pro/Maxのレート制限（サブスクリプション上限）を頻繁に使い切ったため、自動トリガーを廃止し手動実行のみに変更した（SBI #20）。その後、一次自動レビューはCopilot→CodeRabbitに切り替えた（publicリポジトリで無料のため。ただしCodeRabbitにも独自のレート制限があり、無制限ではない）。
+- いずれのレビューもコメントのみでマージをブロックしない。必要に応じてリポジトリのブランチ保護ルールで必須チェック化を検討する。
 
 ## 5. コミットメッセージ規約
 
@@ -67,7 +71,7 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
   - PRの作成が必須（レビュー承認自体は必須にしていない。現状は開発者1名のため、承認必須にすると自分のPRをマージできなくなるのを避けるための判断）
   - force push禁止・ブランチ削除禁止
   - `enforce_admins` はOFF（管理者はブランチ保護をバイパス可能。緊急時のセルフマージ用の逃げ道として維持する）
-- **マージ権限**: 現状の開発者（リポジトリ管理者）が、main/developへのマージを単独で承認・実行する。Copilot自動レビュー（必要なら手動の深掘りレビューも）のコメントを確認したうえでマージする運用とする。
+- **マージ権限**: 現状の開発者（リポジトリ管理者）が、main/developへのマージを単独で承認・実行する。CodeRabbitの自動レビュー（必要なら手動の深掘りレビューも）のコメントを確認したうえでマージする運用とする。
 - ステータスチェックの必須化はまだ行っていない。自動レビューはコメント投稿のみでマージをブロックしない設計（4章）と一致させるため。チェックが安定して走ることを確認できたら、必須化を再検討する。
 - 開発者が増えた場合は、承認必須（`required_approving_review_count` を1以上）に切り替えることを検討する。
 
@@ -77,4 +81,18 @@ PBI自体はブランチを持たない（トラッキング用のissueのみ）
 - [ ] 実機/ローカル環境で動作確認済み
 - [ ] UI変更を含む場合、[docs/design.md](design.md) に準拠している
 - [ ] テキストに絵文字を使用していない
-- [ ] 自動レビュー（Copilot、必要なら手動の深掘りレビューも）のコメントを確認済み
+- [ ] 自動レビュー（CodeRabbit、必要なら手動の深掘りレビューも）のコメントを確認済み
+
+## 8. 自動開発ループ（`/loop`）でのSlack連携
+
+Claudeが `/loop` でPBIバックログを自律的に消化する際は、Slack（`#bestshift-dev`）を使って以下のルールに従う。
+
+- **マージは自動で行わない**: PR作成後、Slackにマージ承認依頼（PRリンク付き）を送信し、実際のマージはユーザーがGitHub上で行う。Slack上の返信有無に関わらず、マージが確認できるまで次のSBIには進まない。
+  - マージ承認依頼を送信すると同時に、`gh pr view <PR番号> --json state,mergedAt`を短い間隔（30秒程度）でポーリングするMonitorを起動し、マージを即座に検知する。`gh`コマンドはシェルコマンドなので、SlackのMCPツールとは異なりMonitorで直接ポーリングできる（通常のバックログ巡回間隔・20〜30分では、その間にマージされてもすぐには気づけないため）。
+- **自動レビューを必ず確認する**: PR作成後はCodeRabbitのレビューコメントを確認してから次に進む。無料枠のレート制限（「Review limit reached...」）に達した場合はスキップせず、制限が回復するまで待つ。
+  - **CodeRabbitは制限が回復しても自動では再レビューしない**（新しいpushや`@coderabbitai review`コメントなど、新しいトリガーがない限りレビューは走らない。実際に「Next included review available in N分」のメッセージが出た後、何もせず待っているだけではレビューが付かないことを確認済み）。制限メッセージに書かれた回復時間だけ`ScheduleWakeup`で待ち、回復後にPRコメントで`@coderabbitai review`を実行してから、そのレビュー完了を待つ。
+  - 回復予定時刻ちょうど1回だけチェックする設計だと、CodeRabbit側の予告時間が多少ズレた場合に見落とす（実際に予定時刻とほぼ同時にユーザーから指摘を受けて気づいた事例あり）。予定時刻の前後で複数回（目安: 5分前・ちょうど・5分後）`ScheduleWakeup`でチェックし、いずれかの時点で制限メッセージが消えていたら`@coderabbitai review`を実行する。
+- **待機中の並行作業**: レビュー待ち・レート制限待ち・マージ待ちなどで手が空く間は、完全に独立した別のSBI/PBI（同じファイルやブランチに依存しないもの）があれば並行して着手してよい。依存関係がある場合は待つ。
+- **意思決定が必要な場合はSlackで確認する**: 実装方針の大きな判断、スコープが不明確なPBIの扱い、破壊的操作など、ユーザーの判断が必要な事項が発生したら`#bestshift-dev`に質問を送信し、スレッドへの返信を確認してから進める（返信の受信手段はプッシュ通知ではなく、スレッドを都度読みに行くポーリング方式）。
+  - Slack自体はシェルコマンドではなくMCPツール経由でしかアクセスできないため、Monitorツールで直接ポーリングすることはできない。意思決定確認を送信した間は、通常のバックログ巡回（20〜30分間隔）より短い60〜90秒間隔で`ScheduleWakeup`を繰り返し、そのつどスレッドを確認する。返信を確認できたら通常の間隔に戻す。
+- **コードレビュー対応・実装中に見つけた問題はSBIの範囲内でのみ直す**: CodeRabbit等のレビュー指摘や実装中に気づいたバグ・改善点は、着手中のSBIのタスク内容・DoDに含まれる範囲であればそのSBI内で直してよい。SBIの範囲外の内容（無関係なファイルの問題、別機能の改善など）はその場で実装せず、**必ず新しいSBI/PBI issueとして起票する**（スコープの肥大化・PRの巨大化を防ぐため）。「対応しない」とPRコメントに書くだけで終わらせず、起票したissue番号をPRコメントに残して次のアクションにつなげること。

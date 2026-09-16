@@ -9,6 +9,11 @@ export const api = axios.create({
   withCredentials: true, // Cookie / セッション保持
 });
 
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // SafariのITP等でクロスサイトCookieがブロックされる端末向けに、
 // localStorageに保存したトークンをAuthorizationヘッダーでも送る
 api.interceptors.request.use((config) => {
@@ -17,6 +22,13 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Cookie認証にフォールバックした場合に備え、CSRFダブルサブミット用トークンも付与する
+    const csrfToken = getCookie("csrf_access_token");
+    if (csrfToken) {
+      config.headers = config.headers ?? {};
+      config.headers["X-CSRF-TOKEN"] = csrfToken;
     }
   }
   return config;

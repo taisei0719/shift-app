@@ -1,3 +1,6 @@
+from models import Shift
+
+
 def test_submit_shift_requires_auth(client):
     res = client.post("/api/shifts/submit_request", json={"requests": []})
 
@@ -27,6 +30,46 @@ def test_submit_shift_without_shop_fails(client, make_user, auth_header):
         "/api/shifts/submit_request",
         headers=headers,
         json={"requests": [{"date": "2026-10-01", "start": "09:00", "end": "17:00"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_literal_null_body(client, make_shop, make_user, auth_header):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く。"""
+    make_user(email="nullbody@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nullbody@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request", headers=headers, data="null", content_type="application/json"
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_missing_date(client, make_shop, make_user, auth_header):
+    """requests[0]にdateが無い場合、TypeErrorで500にならず400を返す。"""
+    make_user(email="nodate@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nodate@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": [{"start": "09:00", "end": "17:00"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_non_dict_request_entry(client, make_shop, make_user, auth_header):
+    """requestsの要素がオブジェクトでない場合、AttributeErrorで500にならず400を返す。"""
+    make_user(email="scalarentry@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("scalarentry@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": ["not-an-object"]},
     )
 
     assert res.status_code == 400
@@ -89,3 +132,108 @@ def test_admin_confirm_requires_admin_role(client, make_shop, make_user, auth_he
     )
 
     assert res.status_code == 403
+
+
+def test_admin_confirm_rejects_body_without_json_content_type(client, make_shop, make_user, auth_header):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff5@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff5@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm", headers=headers, data="{}", content_type="text/plain"
+    )
+
+    assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_non_dict_confirmed_shift_entry(client, make_shop, make_user, auth_header):
+    """confirmed_shiftsの要素がオブジェクトでない場合、shift_dateアクセスで例外落ちして
+    500にならず400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff6@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff6@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={"confirmed_shifts": ["not-an-object"]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_entry_missing_user_id(client, make_shop, make_user, auth_header):
+    """shift_dateしか無いエントリは、target_user_ids生成時のKeyErrorで500にならず
+    400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff7@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff7@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={"confirmed_shifts": [{"shift_date": "2026-10-01"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_mixed_shift_dates(client, make_shop, make_user, auth_header, db_session):
+    """confirmed_shiftsの各エントリでshift_dateが異なる場合、最初のエントリの日付が
+    他のエントリにも誤って適用されてしまうデータ不整合を防ぐため400を返すことを
+    確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff8@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="staff9@example.com", password="password123", role="staff", shop=shop)
+    staff_id = staff.id
+    headers = auth_header("staff8@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={
+            "confirmed_shifts": [
+                {"user_id": staff_id, "shift_date": "2026-10-01", "start_time": "09:00", "end_time": "17:00"},
+                {"user_id": staff_id, "shift_date": "2026-10-02", "start_time": "09:00", "end_time": "17:00"},
+            ]
+        },
+    )
+
+    assert res.status_code == 400
+    assert Shift.query.filter_by(user_id=staff_id, shift_type="confirmed").count() == 0
+
+
+def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):
+    """confirmed_shiftsのuser_idが管理者の店舗に実在しない場合（他店舗のユーザー等）は、
+    不整合なShiftレコードを作らずスキップする（issue #70）。"""
+    shop_a = make_shop()
+    shop_b = make_shop()
+    make_user(email="admin_a@example.com", password="password123", role="admin", shop=shop_a)
+    other_shop_staff = make_user(email="staff_b@example.com", password="password123", role="staff", shop=shop_b)
+    other_shop_staff_id = other_shop_staff.id
+    admin_headers = auth_header("admin_a@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=admin_headers,
+        json={
+            "confirmed_shifts": [
+                {
+                    "user_id": other_shop_staff_id,
+                    "shift_date": "2026-10-01",
+                    "start_time": "09:00",
+                    "end_time": "17:00",
+                }
+            ]
+        },
+    )
+
+    assert res.status_code == 200
+    assert "0件確定しました" in res.get_json()["message"]
+
+    staff_b_headers = auth_header("staff_b@example.com", "password123")
+    check = client.get("/api/shifts/2026-10-01", headers=staff_b_headers)
+    assert check.status_code == 200
+    assert check.get_json()["confirmed_shifts"] == []

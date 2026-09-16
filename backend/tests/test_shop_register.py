@@ -46,6 +46,40 @@ def test_shop_register_rejects_duplicate_shop_name(client, make_shop, make_user,
     assert res.status_code == 400
 
 
+def test_shop_register_rejects_literal_null_body(client, make_user, auth_header):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く。"""
+    make_user(email="owner3@example.com", password="password123", role="admin", shop=None)
+    headers = auth_header("owner3@example.com", "password123")
+
+    res = client.post(
+        "/api/shop_register", headers=headers, data="null", content_type="application/json"
+    )
+
+    assert res.status_code == 400
+
+
+def test_shop_register_rejects_missing_name(client, make_user, auth_header):
+    make_user(email="owner4@example.com", password="password123", role="admin", shop=None)
+    headers = auth_header("owner4@example.com", "password123")
+
+    res = client.post(
+        "/api/shop_register", headers=headers, json={"location": "Tokyo"}
+    )
+
+    assert res.status_code == 400
+
+
+def test_shop_register_rejects_too_long_name(client, make_user, auth_header):
+    make_user(email="owner5@example.com", password="password123", role="admin", shop=None)
+    headers = auth_header("owner5@example.com", "password123")
+
+    res = client.post(
+        "/api/shop_register", headers=headers, json={"name": "x" * 81, "location": "Tokyo"}
+    )
+
+    assert res.status_code == 400
+
+
 def test_register_to_shop_register_to_shift_submit_end_to_end(client):
     """新規登録→ログイン→店舗登録→シフト提出までを、実際のAPI呼び出しのみで通す統合テスト。"""
     register_res = client.post(
