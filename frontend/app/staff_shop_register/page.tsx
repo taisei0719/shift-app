@@ -9,7 +9,7 @@ import { useUser } from "../context/UserContext";
 export default function StaffShopRequest() {
   const [shopCode, setShopCode] = useState("");
   const [message, setMessage] = useState("");
-  const { refreshUser } = useUser();
+  const { user, refreshUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,10 +45,16 @@ export default function StaffShopRequest() {
       <div className="w-full max-w-sm p-8 space-y-6 bg-white shadow-xl rounded-lg border border-gray-200">
         
         {/* タイトル */}
-        <h1 className="text-2xl font-bold text-gray-900 text-center">店舗への参加リクエスト</h1> 
-        
+        <h1 className="text-2xl font-bold text-gray-900 text-center">店舗への参加リクエスト</h1>
+
         <p className="text-sm text-gray-600 text-center">オーナーの承認を得るために、店舗コードを入力してください。</p>
-        
+
+        {user?.shop_name && (
+          <p className="text-xs text-gray-500 text-center">
+            現在の所属店舗: {user.shop_name}（別の店舗にも参加リクエストを送れます。承認されてもアクティブ店舗は変わりません）
+          </p>
+        )}
+
         {/* メッセージ表示エリア */}
         {message && (
           <p className={`text-sm text-center ${messageColorClass} font-medium`}>

@@ -5,8 +5,15 @@
 import "./globals.css";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import { useUser, UserProvider } from "./context/UserContext";
 import { api, TOKEN_STORAGE_KEY } from "@/lib/api";
+
+interface MyShop {
+  shop_id: number;
+  name: string;
+  is_active: boolean;
+}
 
 // nav-link に相当するクラスを定義
 const NavLinkClasses = "text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 lg:hover:bg-indigo-600 lg:active:bg-indigo-800 text-center text-xs lg:text-base flex-1 lg:flex-none";
@@ -14,8 +21,43 @@ const NavLinkClasses = "text-white py-2 px-3 rounded-lg font-medium transition-c
 const HiddenOnMobile = "hidden lg:block";
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
   const pathname = usePathname();
+  const [myShops, setMyShops] = useState<MyShop[]>([]);
+  const [switching, setSwitching] = useState(false);
+
+  const fetchMyShops = useCallback(async () => {
+    if (!user) {
+      setMyShops([]);
+      return;
+    }
+    try {
+      const res = await api.get("/my_shops");
+      setMyShops(res.data.shops ?? []);
+    } catch (err) {
+      console.error("Failed to fetch my shops:", err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchMyShops();
+  }, [fetchMyShops]);
+
+  const handleSwitchShop = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextShopId = Number(e.target.value);
+    if (!nextShopId || nextShopId === user?.shop_id) return;
+
+    setSwitching(true);
+    try {
+      await api.post("/active_shop", { shop_id: nextShopId });
+      await refreshUser();
+      await fetchMyShops();
+    } catch (err) {
+      console.error("Failed to switch active shop:", err);
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   const handleLogout = async () => {
     await api.post("/logout");
@@ -38,6 +80,26 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 <p className="text-xl font-extrabold mt-1">{user.user_name}</p>
                 <p className="text-sm mt-1">役割: {user.role === "admin" ? "オーナー" : "スタッフ"}</p>
                 <p className="text-sm mt-1">店舗: {user.shop_name || "未登録"}</p>
+                {myShops.length > 1 && (
+                  <div className="mt-2">
+                    <label htmlFor="shop-switcher" className="text-xs text-indigo-200">
+                      アクティブ店舗を切替
+                    </label>
+                    <select
+                      id="shop-switcher"
+                      value={user.shop_id ?? ""}
+                      onChange={handleSwitchShop}
+                      disabled={switching}
+                      className="mt-1 w-full text-sm rounded-lg border border-indigo-300 bg-white text-gray-900 px-2 py-1.5 disabled:opacity-60"
+                    >
+                      {myShops.map((shop) => (
+                        <option key={shop.shop_id} value={shop.shop_id}>
+                          {shop.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* ナビゲーションリンク (PCとモバイルで表示を切り替え) */}
