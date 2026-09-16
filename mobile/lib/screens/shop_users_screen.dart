@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/auth_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -67,6 +68,7 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
                 errorText: dialogError,
               ),
               maxLength: 50,
+              maxLengthEnforcement: MaxLengthEnforcement.none,
             ),
             actions: [
               TextButton(
@@ -76,6 +78,12 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
               ElevatedButton(
                 onPressed: () {
                   final value = controller.text.trim();
+                  if (value.length > 50) {
+                    setDialogState(() {
+                      dialogError = 'ポジション名は50文字以内で入力してください';
+                    });
+                    return;
+                  }
                   if (value == _unspecifiedPositionValue) {
                     setDialogState(() {
                       dialogError = '"$_unspecifiedPositionValue" は予約語のため指定できません';

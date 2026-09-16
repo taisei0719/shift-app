@@ -133,6 +133,25 @@ void main() {
       expect(notifier.lastUpdatedPosition, isNull);
     });
 
+    testWidgets('51文字以上のポジション名は保存できずダイアログにエラーが表示される', (tester) async {
+      final notifier = _FakeAuthNotifier(initialUsers: [
+        {'user_id': 1, 'user_name': 'スタッフA', 'role': 'staff', 'is_owner': false, 'position': null},
+      ]);
+
+      await tester.pumpWidget(_wrap(notifier));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'a' * 51);
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('50文字以内で入力してください'), findsOneWidget);
+      expect(notifier.lastUpdatedPosition, isNull);
+    });
+
     testWidgets('更新失敗時はSnackBarでエラーメッセージを表示する', (tester) async {
       final notifier = _FakeAuthNotifier(
         throwOnUpdate: true,
