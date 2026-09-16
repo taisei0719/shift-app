@@ -243,6 +243,106 @@ def test_handle_join_request_rejects_approve_for_different_shop_request(client, 
     assert refreshed.shop_request_code == other_shop_code
 
 
+def test_get_my_shops_returns_memberships(client, make_shop, make_user, auth_header, db_session):
+    shop_a = make_shop(name="Shop A")
+    shop_b = make_shop(name="Shop B")
+    shop_a_id, shop_b_id = shop_a.id, shop_b.id
+    user = make_user(email="myshops1@example.com", password="password123", role="staff", shop=shop_a)
+    db_session.add_all([
+        UserShop(user_id=user.id, shop_id=shop_a_id),
+        UserShop(user_id=user.id, shop_id=shop_b_id),
+    ])
+    db_session.commit()
+    headers = auth_header("myshops1@example.com", "password123")
+
+    res = client.get("/api/my_shops", headers=headers)
+
+    assert res.status_code == 200
+    shops = res.get_json()["shops"]
+    shop_ids = {s["shop_id"]: s for s in shops}
+    assert set(shop_ids.keys()) == {shop_a_id, shop_b_id}
+    assert shop_ids[shop_a_id]["is_active"] is True
+    assert shop_ids[shop_b_id]["is_active"] is False
+
+
+def test_get_my_shops_empty_when_no_memberships(client, make_user, auth_header):
+    make_user(email="myshops2@example.com", password="password123", role="staff", shop=None)
+    headers = auth_header("myshops2@example.com", "password123")
+
+    res = client.get("/api/my_shops", headers=headers)
+
+    assert res.status_code == 200
+    assert res.get_json()["shops"] == []
+
+
+def test_get_my_shops_requires_auth(client):
+    res = client.get("/api/my_shops")
+
+    assert res.status_code == 401
+
+
+def test_switch_active_shop_success(client, make_shop, make_user, auth_header, db_session):
+    shop_a = make_shop(name="Shop A")
+    shop_b = make_shop(name="Shop B")
+    shop_b_id = shop_b.id
+    user = make_user(email="switch1@example.com", password="password123", role="staff", shop=shop_a)
+    db_session.add_all([
+        UserShop(user_id=user.id, shop_id=shop_a.id),
+        UserShop(user_id=user.id, shop_id=shop_b.id),
+    ])
+    db_session.commit()
+    headers = auth_header("switch1@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": shop_b_id})
+
+    assert res.status_code == 200
+    refreshed = db_session.get(User, user.id)
+    assert refreshed.shop_id == shop_b_id
+
+
+def test_switch_active_shop_rejects_non_member_shop(client, make_shop, make_user, auth_header, db_session):
+    shop_a = make_shop(name="Shop A")
+    shop_a_id = shop_a.id
+    other_shop = make_shop(name="Other Shop")
+    other_shop_id = other_shop.id
+    user = make_user(email="switch2@example.com", password="password123", role="staff", shop=shop_a)
+    db_session.add(UserShop(user_id=user.id, shop_id=shop_a_id))
+    db_session.commit()
+    headers = auth_header("switch2@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": other_shop_id})
+
+    assert res.status_code == 403
+    refreshed = db_session.get(User, user.id)
+    assert refreshed.shop_id == shop_a_id
+
+
+def test_switch_active_shop_requires_auth(client):
+    res = client.post("/api/active_shop", json={"shop_id": 1})
+
+    assert res.status_code == 401
+
+
+def test_switch_active_shop_rejects_non_integer_shop_id(client, make_user, auth_header):
+    """shop_idが非整数（辞書・配列等）の場合、DBクエリに渡す前に400で拒否する（issue #104）。"""
+    make_user(email="switch3@example.com", password="password123", role="staff", shop=None)
+    headers = auth_header("switch3@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": {"nested": "object"}})
+
+    assert res.status_code == 400
+
+
+def test_switch_active_shop_rejects_boolean_shop_id(client, make_user, auth_header):
+    """boolはintのサブクラスのため、暗黙変換されてしまわないよう明示的に拒否する（issue #104）。"""
+    make_user(email="switch4@example.com", password="password123", role="staff", shop=None)
+    headers = auth_header("switch4@example.com", "password123")
+
+    res = client.post("/api/active_shop", headers=headers, json={"shop_id": True})
+
+    assert res.status_code == 400
+
+
 def test_get_shop_detail_success(client, make_shop, make_user, auth_header):
     shop = make_shop()
     make_user(email="shopdetail1@example.com", password="password123", role="staff", shop=shop)
