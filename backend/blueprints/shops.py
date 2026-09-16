@@ -10,8 +10,9 @@ from flask_jwt_extended import (
     set_access_cookies,
     set_refresh_cookies,
 )
+from sqlalchemy import update
 
-from models import db, User, Shop
+from models import db, User, Shop, UserShop
 from services.position import UNSPECIFIED_POSITION
 from services.user_shops import ensure_user_shop_membership
 
@@ -89,20 +90,34 @@ def join_shop_request():
     user_id_str = get_jwt_identity()
     user_id = int(user_id_str)
 
-    # 2. ユーザーの取得と所属チェック
+    # 2. ユーザーの取得
     user = db.session.get(User, user_id)
     if not user:
          return jsonify({"error": "ユーザーが見つかりません"}), 404
-    if user.shop_id:
-        return jsonify({"error": "既に店舗に所属しています"}), 400
 
     # 3. 店舗コードの検証
     shop = Shop.query.filter_by(shop_code=shop_code).first()
     if not shop:
         return jsonify({"error": "無効な店舗コードです"}), 404
 
+    # 複数店舗所属に対応するため、既に別の店舗に所属していても参加リクエストは送れる。
+    # ただし対象店舗に既に所属している場合は拒否する。
+    if UserShop.query.filter_by(user_id=user_id, shop_id=shop.id).first():
+        return jsonify({"error": "既にその店舗に所属しています"}), 400
+
     # 4. リクエスト送信（Userモデルの暫定カラムを更新）
-    user.shop_request_code = shop_code
+    # 保留中のリクエストが既にある場合（1ユーザーにつき同時に1件まで）は拒否する。
+    # 「読み取ってから書き込む」実装だと同時リクエストで両方がshop_request_code未設定を
+    # 読んでしまい後勝ちで上書きされうるため、shop_request_codeがNULLの場合のみ更新する
+    # 原子的なUPDATEで防ぐ。
+    result = db.session.execute(
+        update(User)
+        .where(User.id == user_id, User.shop_request_code.is_(None))
+        .values(shop_request_code=shop_code)
+    )
+    if result.rowcount == 0:
+        db.session.rollback()
+        return jsonify({"error": "既に保留中の参加リクエストがあります"}), 400
     db.session.commit()
 
     return jsonify({"message": f"店舗 '{shop.name}' への参加リクエストをオーナーに送信しました。"}), 200
@@ -133,9 +148,9 @@ def get_join_requests():
 
     target_code = shop.shop_code
 
-    # 3. その店舗コードでリクエスト中のユーザーを全て検索 (ロジックは変更なし)
+    # 3. その店舗コードでリクエスト中のユーザーを全て検索
+    # 複数店舗所属に対応するため、既に別の店舗に所属しているユーザーからのリクエストも対象に含める
     requests = User.query.filter(
-        User.shop_id.is_(None),
         User.shop_request_code == target_code
     ).all()
 
@@ -187,8 +202,12 @@ def handle_join_request(user_id):
 
     # 3. アクションの実行
     if action == "approve":
-        # 承認処理: user.shop_id を管理者の店舗IDに設定し、リクエストコードをクリア
-        target_user.shop_id = admin_shop_id # ★ トークンから取得した shop_id を使用
+        # 承認処理: user_shopsに所属関係を追加し、リクエストコードをクリアする。
+        # アクティブ店舗（shop_id）が未設定の場合のみ、承認した店舗を自動でアクティブにする。
+        # 既に別の店舗がアクティブな場合は変更しない（切り替えは別途アクティブ店舗切替APIで行う）。
+        ensure_user_shop_membership(target_user.id, admin_shop_id)
+        if not target_user.shop_id:
+            target_user.shop_id = admin_shop_id
         target_user.shop_request_code = None
         message = f"ユーザー {target_user.name} を店舗に承認しました。次回ログイン時にユーザーのトークンが更新されます。"
 

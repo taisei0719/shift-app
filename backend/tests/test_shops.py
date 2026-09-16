@@ -1,4 +1,4 @@
-from models import User
+from models import User, UserShop
 
 
 def test_join_shop_request_success(client, make_shop, make_user, auth_header):
@@ -14,15 +14,55 @@ def test_join_shop_request_success(client, make_shop, make_user, auth_header):
     assert res.status_code == 200
 
 
-def test_join_shop_request_rejects_if_already_in_shop(client, make_shop, make_user, auth_header):
+def test_join_shop_request_rejects_if_already_member_of_target_shop(client, make_shop, make_user, auth_header, db_session):
+    """既に所属している店舗と同じ店舗コードへの参加リクエストは拒否する（issue #97）。"""
     shop = make_shop()
-    other_shop = make_shop(name="Other Shop")
-    other_shop_code = other_shop.shop_code
-    make_user(email="joinstaff2@example.com", password="password123", role="staff", shop=shop)
+    shop_code = shop.shop_code
+    user = make_user(email="joinstaff2@example.com", password="password123", role="staff", shop=shop)
+    db_session.add(UserShop(user_id=user.id, shop_id=shop.id))
+    db_session.commit()
     headers = auth_header("joinstaff2@example.com", "password123")
 
     res = client.post(
+        "/api/join_shop/request", headers=headers, json={"shop_code": shop_code}
+    )
+
+    assert res.status_code == 400
+
+
+def test_join_shop_request_allows_requesting_additional_shop(client, make_shop, make_user, auth_header, db_session):
+    """既に別の店舗に所属していても、別の店舗への参加リクエストは送れる（複数店舗所属対応、issue #97）。"""
+    shop = make_shop()
+    other_shop = make_shop(name="Other Shop")
+    other_shop_code = other_shop.shop_code
+    user = make_user(email="joinstaff2b@example.com", password="password123", role="staff", shop=shop)
+    db_session.add(UserShop(user_id=user.id, shop_id=shop.id))
+    db_session.commit()
+    headers = auth_header("joinstaff2b@example.com", "password123")
+
+    res = client.post(
         "/api/join_shop/request", headers=headers, json={"shop_code": other_shop_code}
+    )
+
+    assert res.status_code == 200
+    refreshed = db_session.get(User, user.id)
+    assert refreshed.shop_request_code == other_shop_code
+    # アクティブ店舗は変更されない
+    assert refreshed.shop_id == shop.id
+
+
+def test_join_shop_request_rejects_duplicate_pending_request(client, make_shop, make_user, auth_header, db_session):
+    """保留中の参加リクエストが既にある場合、別店舗への新規リクエストは拒否する（1ユーザー同時1件まで、issue #97）。"""
+    other_shop = make_shop(name="Other Shop")
+    third_shop = make_shop(name="Third Shop")
+    third_shop_code = third_shop.shop_code
+    user = make_user(email="joinstaff2c@example.com", password="password123", role="staff")
+    user.shop_request_code = other_shop.shop_code
+    db_session.commit()
+    headers = auth_header("joinstaff2c@example.com", "password123")
+
+    res = client.post(
+        "/api/join_shop/request", headers=headers, json={"shop_code": third_shop_code}
     )
 
     assert res.status_code == 400
@@ -64,6 +104,24 @@ def test_get_join_requests_requires_admin(client, make_user, auth_header):
     assert res.status_code == 403
 
 
+def test_get_join_requests_includes_requester_with_existing_shop(client, make_shop, make_user, auth_header, db_session):
+    """複数店舗所属対応: 既に別の店舗に所属しているユーザーからのリクエストも一覧に含める（issue #97）。"""
+    shop = make_shop()
+    other_shop = make_shop(name="Other Shop")
+    make_user(email="joinadmin1b@example.com", password="password123", role="admin", shop=shop)
+    requester = make_user(email="joinstaff4b@example.com", password="password123", role="staff", shop=other_shop)
+    requester_id = requester.id
+    requester.shop_request_code = shop.shop_code
+    db_session.commit()
+    admin_headers = auth_header("joinadmin1b@example.com", "password123")
+
+    res = client.get("/api/join_requests", headers=admin_headers)
+
+    assert res.status_code == 200
+    requester_ids = {r["user_id"] for r in res.get_json()["requests"]}
+    assert requester_id in requester_ids
+
+
 def test_handle_join_request_approve(client, make_shop, make_user, auth_header, db_session):
     shop = make_shop()
     make_user(email="joinadmin2@example.com", password="password123", role="admin", shop=shop)
@@ -82,6 +140,32 @@ def test_handle_join_request_approve(client, make_shop, make_user, auth_header, 
     refreshed = db_session.get(User, requester_id)
     assert refreshed.shop_id == shop_id
     assert refreshed.shop_request_code is None
+    assert UserShop.query.filter_by(user_id=requester_id, shop_id=shop_id).first() is not None
+
+
+def test_handle_join_request_approve_keeps_existing_active_shop(client, make_shop, make_user, auth_header, db_session):
+    """既にアクティブな店舗を持つユーザーが別の店舗の参加リクエストを承認されても、
+    アクティブ店舗（shop_id）は自動で切り替わらない（issue #97）。切替は別途アクティブ店舗切替APIで行う。"""
+    home_shop = make_shop(name="Home Shop")
+    new_shop = make_shop(name="New Shop")
+    make_user(email="joinadmin2b@example.com", password="password123", role="admin", shop=new_shop)
+    requester = make_user(email="joinstaff6b@example.com", password="password123", role="staff", shop=home_shop)
+    requester_id, home_shop_id, new_shop_id = requester.id, home_shop.id, new_shop.id
+    db_session.add(UserShop(user_id=requester_id, shop_id=home_shop_id))
+    requester.shop_request_code = new_shop.shop_code
+    db_session.commit()
+    admin_headers = auth_header("joinadmin2b@example.com", "password123")
+
+    res = client.post(
+        f"/api/join_requests/{requester_id}", headers=admin_headers, json={"action": "approve"}
+    )
+
+    assert res.status_code == 200
+
+    refreshed = db_session.get(User, requester_id)
+    assert refreshed.shop_id == home_shop_id  # アクティブ店舗は変わらない
+    assert refreshed.shop_request_code is None
+    assert UserShop.query.filter_by(user_id=requester_id, shop_id=new_shop_id).first() is not None
 
 
 def test_handle_join_request_reject(client, make_shop, make_user, auth_header, db_session):
