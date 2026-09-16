@@ -19,6 +19,14 @@ def test_register_missing_fields(client):
     assert res.status_code == 400
 
 
+def test_register_rejects_body_without_json_content_type(client):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    res = client.post("/api/register", data="{}", content_type="text/plain")
+
+    assert res.status_code == 400
+
+
 def test_register_rejects_disallowed_role(client):
     res = client.post(
         "/api/register",

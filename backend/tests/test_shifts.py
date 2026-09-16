@@ -131,6 +131,20 @@ def test_admin_confirm_requires_admin_role(client, make_shop, make_user, auth_he
     assert res.status_code == 403
 
 
+def test_admin_confirm_rejects_body_without_json_content_type(client, make_shop, make_user, auth_header):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff5@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff5@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm", headers=headers, data="{}", content_type="text/plain"
+    )
+
+    assert res.status_code == 400
+
+
 def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):
     """confirmed_shiftsのuser_idが管理者の店舗に実在しない場合（他店舗のユーザー等）は、
     不整合なShiftレコードを作らずスキップする（issue #70）。"""

@@ -32,7 +32,7 @@ def submit_shift_request():
     if not shop_id:
         return jsonify({"error": "店舗に所属していません"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     submitted_requests = data.get("requests", [])
@@ -241,10 +241,12 @@ def confirm_shifts():
     if not shop_id:
         return jsonify({"error": "管理店舗が登録されていません"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     confirmed_shifts_data = data.get("confirmed_shifts", [])
 
-    if not confirmed_shifts_data:
+    if not isinstance(confirmed_shifts_data, list) or not confirmed_shifts_data:
         return jsonify({"error": "確定シフトデータがありません"}), 400
 
     try:

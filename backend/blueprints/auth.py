@@ -27,7 +27,7 @@ ALLOWED_SELF_REGISTER_ROLES = {"staff", "admin"}
 @auth_bp.route("/api/register", methods=["POST"])
 @limiter.limit("10 per minute")
 def register():
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     name = data.get("name")
@@ -84,7 +84,7 @@ def edit_account():
     user_id_str = get_jwt_identity()
     user_id = int(user_id_str)
 
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     new_name = data.get("name")
@@ -177,7 +177,7 @@ def delete_account():
 @auth_bp.route("/api/login", methods=["POST"])
 @limiter.limit("10 per minute")
 def login():
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     identifier = data.get("identifier")
