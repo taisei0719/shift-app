@@ -4,10 +4,10 @@
 
 import "./globals.css";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { useUser, UserProvider } from "./context/UserContext";
-import { api, TOKEN_STORAGE_KEY } from "@/lib/api";
+import { api, getErrorMessage, TOKEN_STORAGE_KEY } from "@/lib/api";
 
 interface MyShop {
   shop_id: number;
@@ -23,8 +23,10 @@ const HiddenOnMobile = "hidden lg:block";
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { user, refreshUser } = useUser();
   const pathname = usePathname();
+  const router = useRouter();
   const [myShops, setMyShops] = useState<MyShop[]>([]);
   const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   const fetchMyShops = useCallback(async () => {
     if (!user) {
@@ -34,8 +36,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.get("/my_shops");
       setMyShops(res.data.shops ?? []);
+      setSwitchError(null);
     } catch (err) {
       console.error("Failed to fetch my shops:", err);
+      setSwitchError(getErrorMessage(err, "所属店舗一覧の取得に失敗しました"));
     }
   }, [user]);
 
@@ -48,12 +52,21 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     if (!nextShopId || nextShopId === user?.shop_id) return;
 
     setSwitching(true);
+    setSwitchError(null);
     try {
       await api.post("/active_shop", { shop_id: nextShopId });
       await refreshUser();
       await fetchMyShops();
+
+      // 店舗依存のルート（/shop/[shopId]/...）を表示中の場合、切替後の
+      // 店舗IDへナビゲートしないと古い店舗の情報が表示されたままになる
+      const shopRouteMatch = pathname.match(/^\/shop\/\d+(.*)$/);
+      if (shopRouteMatch) {
+        router.replace(`/shop/${nextShopId}${shopRouteMatch[1]}`);
+      }
     } catch (err) {
       console.error("Failed to switch active shop:", err);
+      setSwitchError(getErrorMessage(err, "店舗の切替に失敗しました"));
     } finally {
       setSwitching(false);
     }
@@ -80,6 +93,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 <p className="text-xl font-extrabold mt-1">{user.user_name}</p>
                 <p className="text-sm mt-1">役割: {user.role === "admin" ? "オーナー" : "スタッフ"}</p>
                 <p className="text-sm mt-1">店舗: {user.shop_name || "未登録"}</p>
+                {switchError && (
+                  <p className="mt-1 text-xs text-red-300">{switchError}</p>
+                )}
                 {myShops.length > 1 && (
                   <div className="mt-2">
                     <label htmlFor="shop-switcher" className="text-xs text-indigo-200">
