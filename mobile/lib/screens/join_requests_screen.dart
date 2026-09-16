@@ -78,6 +78,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(
@@ -103,6 +104,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -118,6 +120,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(
@@ -142,6 +145,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
       shopName: user?.shopName,
       onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
       body: Center(

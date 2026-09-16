@@ -77,8 +77,10 @@ class _AutoAdjustSettingsScreenState extends ConsumerState<AutoAdjustSettingsScr
         "capacities": capacities.map((k, v) => MapEntry(k.toString(), v)),
       };
       await auth.saveAutoAdjustConfig(widget.shopId, payload);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('設定を保存したで')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失敗: ${e.toString()}')));
     } finally {
       setState(() { saving = false; });
@@ -92,9 +94,11 @@ class _AutoAdjustSettingsScreenState extends ConsumerState<AutoAdjustSettingsScr
       final dateStr = _formatDate(targetDate);
       final resp = await auth.runAutoAdjust(widget.shopId, dateStr, apply: apply);
       setState(() { simResult = resp; });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apply ? '適用したで' : 'シミュレーション完了やで')));
     } catch (e) {
       setState(() { error = '自動調整失敗: ${e.toString()}'; });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('自動調整失敗: ${e.toString()}')));
     } finally {
       setState(() { simulating = false; });

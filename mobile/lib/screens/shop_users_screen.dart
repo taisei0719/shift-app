@@ -134,6 +134,7 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -153,6 +154,7 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(
@@ -195,6 +197,7 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(child: Text(error!)),
@@ -210,6 +213,7 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
       shopName: user?.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: ListView.builder(
@@ -219,8 +223,8 @@ class _ShopUsersScreenState extends ConsumerState<ShopUsersScreen> {
           final position = userItem['position'] as String?;
           return ListTile(
             leading: CircleAvatar(
-              child: Text(userItem['user_name'].toString().substring(0, 1)),
               backgroundColor: userItem['is_owner'] ? Colors.indigo : Colors.grey,
+              child: Text(userItem['user_name'].toString().substring(0, 1)),
             ),
             title: Text(userItem['user_name']),
             subtitle: Text(

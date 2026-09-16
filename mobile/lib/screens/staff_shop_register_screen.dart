@@ -65,6 +65,7 @@ class _StaffShopRegisterScreenState extends ConsumerState<StaffShopRegisterScree
       shopName: user?.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: Center(

@@ -32,7 +32,7 @@ class ShiftCalendarWidget extends StatelessWidget {
       calendarCells.add(const SizedBox());
     }
     for (int d = 1; d <= daysInMonth; d++) {
-      final dateStr = '${year}-${month.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}';
+      final dateStr = '$year-${month.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}';
       final shiftList = shiftsByDate[dateStr] ?? [];
       final isToday = now.year == year && now.month == month && now.day == d;
       final isSelected = selectedDateStr == dateStr;

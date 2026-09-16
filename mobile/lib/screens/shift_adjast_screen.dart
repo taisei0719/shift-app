@@ -98,6 +98,7 @@ class _ShiftAdjastScreenState extends ConsumerState<ShiftAdjastScreen> {
 
       final auth = ref.read(authProvider.notifier);
       await auth.confirmShifts(widget.dateStr, confirmedList);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('シフトを確定しました')));
       // 再読み込み or 戻る
       await _loadDay();
@@ -123,6 +124,7 @@ class _ShiftAdjastScreenState extends ConsumerState<ShiftAdjastScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -137,6 +139,7 @@ class _ShiftAdjastScreenState extends ConsumerState<ShiftAdjastScreen> {
       shopName: user?.shopName,
       onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
       },
       body: SingleChildScrollView(
@@ -190,7 +193,7 @@ class _ShiftAdjastScreenState extends ConsumerState<ShiftAdjastScreen> {
                                 },
                               ),
                             );
-                          }).toList(),
+                          }),
                           const Divider(),
                         ],
 
@@ -228,7 +231,7 @@ class _ShiftAdjastScreenState extends ConsumerState<ShiftAdjastScreen> {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
 
               const SizedBox(height: 12),
               Row(

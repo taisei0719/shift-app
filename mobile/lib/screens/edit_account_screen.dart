@@ -69,6 +69,7 @@ class _EditAccountScreenState extends ConsumerState<EditAccountScreen> {
       setState(() {
         message = 'アカウントは正常に削除されました。';
       });
+      if (!mounted) return;
       // ログアウトしてログイン画面へ
       Navigator.of(context).pushReplacementNamed('/login');
     } catch (e) {
@@ -92,6 +93,7 @@ class _EditAccountScreenState extends ConsumerState<EditAccountScreen> {
       shopName: user?.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: Center(
