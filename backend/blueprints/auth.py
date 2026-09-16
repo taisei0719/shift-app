@@ -12,7 +12,7 @@ from flask_jwt_extended import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from extensions import limiter
-from models import db, User, Shift, ShiftRejectionHistory
+from models import db, User, Shift, ShiftRejectionHistory, UserShop
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -146,6 +146,11 @@ def delete_account():
         # （PostgreSQLは外部キー制約をデフォルトで強制するため、削除しないと
         #   db.session.delete(user)が制約違反で失敗しアカウント削除ができなくなる）
         ShiftRejectionHistory.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
+
+        # ユーザーに紐づく店舗所属関係（user_shops）を削除
+        # （user_id列がnullable=Falseのため、削除しないとSQLAlchemyが
+        #   db.session.delete(user)時にuser_idをNULLへ更新しようとしてIntegrityErrorになる）
+        UserShop.query.filter_by(user_id=user.id).delete(synchronize_session='fetch')
 
         # 4. ユーザーアカウント本体の削除
         db.session.delete(user)
