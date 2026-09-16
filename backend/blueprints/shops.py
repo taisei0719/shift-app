@@ -37,9 +37,17 @@ def shop_register():
     if admin_user.shop_id:
          return jsonify({"error": "既に店舗に所属しています"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     name = data.get("name")
     location = data.get("location")
+
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "店舗名は必須です"}), 400
+    name = name.strip()
+    if len(name) > 80:
+        return jsonify({"error": "店舗名は80文字以内で指定してください"}), 400
 
     if Shop.query.filter_by(name=name).first():
         return jsonify({"error": "店舗名が既に存在します"}), 400
@@ -185,7 +193,9 @@ def handle_join_request(user_id):
         # 自分の店舗がないと承認できない
         return jsonify({"error": "管理店舗が登録されていません"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     action = data.get("action") # 'approve' または 'reject'
 
     # 2. 対象ユーザーを取得
@@ -255,7 +265,7 @@ def switch_active_shop():
     if not user:
         return jsonify({"error": "ユーザーが見つかりません"}), 404
 
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     shop_id = data.get("shop_id")
@@ -340,7 +350,9 @@ def update_shop_detail(shop_id):
     if not shop:
         return jsonify({"error": "店舗が見つかりません"}), 404
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     new_name = data.get("name")
     new_location = data.get("location")
 
@@ -448,7 +460,7 @@ def update_user_position(shop_id, target_user_id):
     if not target_user or target_user.shop_id != shop_id:
         return jsonify({"error": "対象の従業員が見つかりません"}), 404
 
-    data = request.json
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエストボディが不正です"}), 400
 

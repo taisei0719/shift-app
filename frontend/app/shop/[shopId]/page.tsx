@@ -87,10 +87,13 @@ export default function ShopDetail() {
   // 自動調整設定の取得（スタッフ一覧の取得失敗が設定データを巻き込んで破棄しないよう、別リクエストとして扱う）
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
+    let cancelled = false;
     setConfigLoaded(false);
     api
       .get(`/shop/${shopId}/auto_adjust/config`)
       .then((res) => {
+        // 取得中に別の店舗へ切り替わっていた場合、古いレスポンスで現在の状態を上書きしない
+        if (cancelled) return;
         const cfg = res.data.config;
         const caps = normalizeCapacities(cfg.capacities);
         setCapacities(caps);
@@ -122,15 +125,21 @@ export default function ShopDetail() {
         setConfigLoaded(true);
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [shopId, isAdmin]);
 
   // スタッフに設定済みのポジション一覧の取得（タブ表示用）
   useEffect(() => {
     if (!shopId || shopId === "unknown" || !isAdmin) return;
+    let cancelled = false;
     setStaffPositionsLoaded(false);
     api
       .get(`/shops/${shopId}/users`)
       .then((res) => {
+        // 取得中に別の店舗へ切り替わっていた場合、古いレスポンスで現在の状態を上書きしない
+        if (cancelled) return;
         const users: StaffUser[] = res.data.users || [];
         const positions = Array.from(
           new Set(users.map((u) => u.position).filter((p): p is string => !!p))
@@ -139,6 +148,9 @@ export default function ShopDetail() {
         setStaffPositionsLoaded(true);
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [shopId, isAdmin]);
 
   // 営業時間が変わったら全ポジションの定員をリセット（範囲外の時間帯を削除）

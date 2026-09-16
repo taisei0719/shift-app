@@ -32,6 +32,46 @@ def test_submit_shift_without_shop_fails(client, make_user, auth_header):
     assert res.status_code == 400
 
 
+def test_submit_shift_request_rejects_literal_null_body(client, make_shop, make_user, auth_header):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く。"""
+    make_user(email="nullbody@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nullbody@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request", headers=headers, data="null", content_type="application/json"
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_missing_date(client, make_shop, make_user, auth_header):
+    """requests[0]にdateが無い場合、TypeErrorで500にならず400を返す。"""
+    make_user(email="nodate@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nodate@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": [{"start": "09:00", "end": "17:00"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_non_dict_request_entry(client, make_shop, make_user, auth_header):
+    """requestsの要素がオブジェクトでない場合、AttributeErrorで500にならず400を返す。"""
+    make_user(email="scalarentry@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("scalarentry@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": ["not-an-object"]},
+    )
+
+    assert res.status_code == 400
+
+
 def test_get_confirmed_shifts_empty(client, make_shop, make_user, auth_header):
     shop = make_shop()
     make_user(email="staff2@example.com", password="password123", role="staff", shop=shop)
@@ -89,6 +129,36 @@ def test_admin_confirm_requires_admin_role(client, make_shop, make_user, auth_he
     )
 
     assert res.status_code == 403
+
+
+def test_admin_confirm_rejects_body_without_json_content_type(client, make_shop, make_user, auth_header):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff5@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff5@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm", headers=headers, data="{}", content_type="text/plain"
+    )
+
+    assert res.status_code == 400
+
+
+def test_admin_confirm_rejects_non_dict_confirmed_shift_entry(client, make_shop, make_user, auth_header):
+    """confirmed_shiftsの要素がオブジェクトでない場合、shift_dateアクセスで例外落ちして
+    500にならず400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff6@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff6@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={"confirmed_shifts": ["not-an-object"]},
+    )
+
+    assert res.status_code == 400
 
 
 def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):

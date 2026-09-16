@@ -36,8 +36,9 @@ def shop_auto_adjust_config(shop_id):
 
     # POST: 保存
     # ボディなし・JSON null・非オブジェクトはいずれもrequest.jsonがNoneまたは非dictになるため、
-    # 空設定として黙って保存せず一律400で拒否する
-    data = request.json
+    # 空設定として黙って保存せず一律400で拒否する。
+    # Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、silent=Trueで取得する
+    data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     priorities = data.get("priorities", {})
@@ -85,7 +86,8 @@ def admin_auto_adjust(date_str):
     except ValueError:
         return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
 
-    apply_flag = bool(request.json.get('apply', False)) if request.json else False
+    body = request.get_json(silent=True)
+    apply_flag = bool(body.get('apply', False)) if isinstance(body, dict) else False
 
     if apply_flag:
         # 割当計算の元になるデータ取得より前にロックを取得し、

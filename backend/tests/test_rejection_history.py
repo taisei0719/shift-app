@@ -105,6 +105,49 @@ def test_reset_rejection_history_rejects_invalid_reset_type(client, make_shop, m
     assert res.status_code == 400
 
 
+def test_reset_rejection_history_rejects_non_object_body(client, make_shop, make_user, auth_header):
+    """JSON配列などオブジェクト以外のボディは、data.get()呼び出し前に400で弾く（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="rhadmin7@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("rhadmin7@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/rejection_history/reset",
+        headers=admin_headers,
+        json=["not", "an", "object"],
+    )
+
+    assert res.status_code == 400
+
+
+def test_reset_rejection_history_rejects_empty_array_body(client, make_shop, make_user, auth_header, db_session):
+    """json=[]はfalsyなため「or {}」で{}にすり替わってしまい、reset_type未検証のまま
+    全履歴リセット（デフォルトのreset_type='all'）が実行されてしまうバグの回帰テスト
+    （issue #109レビュー対応）。空配列は{}へのフォールバック前に非オブジェクトとして拒否する。"""
+    shop = make_shop()
+    make_user(email="rhadmin8@example.com", password="password123", role="admin", shop=shop)
+    staff = make_user(email="rhstaff7@example.com", password="password123", role="staff", shop=shop)
+    shop_id, staff_id = shop.id, staff.id
+    admin_headers = auth_header("rhadmin8@example.com", "password123")
+
+    history = ShiftRejectionHistory(
+        user_id=staff_id, shop_id=shop_id, total_requests=4, total_accepted=1, reset_mode="manual"
+    )
+    db_session.add(history)
+    db_session.commit()
+
+    res = client.post(
+        f"/api/shop/{shop_id}/rejection_history/reset",
+        headers=admin_headers,
+        json=[],
+    )
+
+    assert res.status_code == 400
+    refreshed = ShiftRejectionHistory.query.filter_by(user_id=staff_id, shop_id=shop_id).first()
+    assert refreshed.total_requests == 4
+
+
 def test_update_reset_mode(client, make_shop, make_user, auth_header, db_session):
     shop = make_shop()
     make_user(email="rhadmin5@example.com", password="password123", role="admin", shop=shop)

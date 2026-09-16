@@ -164,7 +164,9 @@ def compute_auto_assignments(request_shifts, priorities_map, capacities_map, sho
         caps = _get_position_caps(r['position'])
 
         # 全時間帯でそのpositionの定員に空きがあるか確認
-        can_assign = all(caps.get(h, 0) > 0 for h in hours)
+        # hoursが空（end<=start）の場合はall()が空リストに対してTrueを返してしまい、
+        # 定員チェックをすり抜けて割当されてしまうため、明示的に対象外にする
+        can_assign = bool(hours) and all(caps.get(h, 0) > 0 for h in hours)
 
         if can_assign:
             # 定員を消費

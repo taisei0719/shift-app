@@ -1,7 +1,7 @@
 # backend/blueprints/shifts.py
 # シフト希望提出・確定・取得関連エンドポイント（PBI #40 / SBI #75）
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta, date
 
@@ -32,14 +32,20 @@ def submit_shift_request():
     if not shop_id:
         return jsonify({"error": "店舗に所属していません"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     submitted_requests = data.get("requests", [])
 
-    if not submitted_requests:
+    if not isinstance(submitted_requests, list) or not submitted_requests:
         return jsonify({"error": "シフトデータがありません"}), 400
+    if not all(isinstance(r, dict) for r in submitted_requests):
+        return jsonify({"error": "シフトデータの形式が不正です"}), 400
 
     # 提出されたリクエストは全て同じ日付のはずなので、最初のエントリから日付を取得
     date_str = submitted_requests[0].get("date")
+    if not isinstance(date_str, str):
+        return jsonify({"error": "日付の形式が不正です (YYYY-MM-DD)"}), 400
 
     try:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -235,10 +241,19 @@ def confirm_shifts():
     if not shop_id:
         return jsonify({"error": "管理店舗が登録されていません"}), 400
 
-    data = request.json
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     confirmed_shifts_data = data.get("confirmed_shifts", [])
 
-    if not confirmed_shifts_data:
+    if (
+        not isinstance(confirmed_shifts_data, list)
+        or not confirmed_shifts_data
+        or not all(
+            isinstance(shift, dict) and isinstance(shift.get("shift_date"), str)
+            for shift in confirmed_shifts_data
+        )
+    ):
         return jsonify({"error": "確定シフトデータがありません"}), 400
 
     try:
@@ -332,10 +347,10 @@ def confirm_shifts():
         db.session.commit()
         return jsonify({"message": f"日付 {date_str} のシフトを{len(new_confirmed_shifts)}件確定しました。"}), 200
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"シフト確定エラー: {e}")
-        return jsonify({"error": f"シフト確定処理中にエラーが発生しました: {str(e)}"}), 500
+        current_app.logger.exception("シフト確定処理中にエラーが発生しました")
+        return jsonify({"error": "シフト確定処理中にエラーが発生しました"}), 500
 
 
 # -------------------- API: 指定日の自分の確定シフト取得 (Staff/Admin 向け) --------------------

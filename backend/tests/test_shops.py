@@ -204,6 +204,25 @@ def test_handle_join_request_invalid_action(client, make_shop, make_user, auth_h
     assert res.status_code == 400
 
 
+def test_handle_join_request_rejects_body_without_json_content_type(client, make_shop, make_user, auth_header):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="joinadmin5b@example.com", password="password123", role="admin", shop=shop)
+    requester = make_user(email="joinstaff9b@example.com", password="password123", role="staff")
+    requester_id = requester.id
+    admin_headers = auth_header("joinadmin5b@example.com", "password123")
+
+    res = client.post(
+        f"/api/join_requests/{requester_id}",
+        headers=admin_headers,
+        data="{}",
+        content_type="text/plain",
+    )
+
+    assert res.status_code == 400
+
+
 def test_handle_join_request_rejects_approve_without_matching_request(client, make_shop, make_user, auth_header):
     """target_userが自店舗への参加をリクエストしていない場合、承認できない（issue #85）。
     admin権限があってもuser_idを変えるだけで任意ユーザーを強制加入させられてはならない。"""

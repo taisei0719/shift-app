@@ -1,7 +1,7 @@
 # backend/blueprints/rejection_history.py
 # 棄却履歴の閲覧・リセット関連エンドポイント（Admin専用）
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models import db, User, ShiftRejectionHistory
@@ -37,7 +37,13 @@ def reset_rejection_history(shop_id):
     if not user or user.role != 'admin' or user.shop_id != shop_id:
         return jsonify({"error": "権限がありません"}), 403
 
-    data = request.json or {}
+    # ボディなし（None）はデフォルト設定として{}扱いにするが、[]や文字列等の
+    # 非オブジェクトな値は「or {}」だとfalsy値（[]等）がすり抜けてしまうため、
+    # Noneかどうかのチェックを先に行いdictの型検証を必ず通す
+    raw_data = request.get_json(silent=True)
+    if raw_data is not None and not isinstance(raw_data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
+    data = raw_data or {}
     reset_type = data.get("reset_type", "all")   # 'all' or 'user'
     target_user_id = data.get("user_id")          # reset_type='user' の場合に必要
     current_ym = get_current_year_month()
@@ -70,9 +76,10 @@ def reset_rejection_history(shop_id):
         else:
             return jsonify({"error": "reset_typeは 'all' または 'user' を指定してください"}), 400
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({"error": f"リセット中にエラーが発生しました: {str(e)}"}), 500
+        current_app.logger.exception("棄却履歴リセット中にエラーが発生しました")
+        return jsonify({"error": "リセット中にエラーが発生しました"}), 500
 
 
 # -------------------- API: リセットモード変更 (Admin専用) --------------------
@@ -87,7 +94,10 @@ def update_reset_mode(shop_id):
     if not user or user.role != 'admin' or user.shop_id != shop_id:
         return jsonify({"error": "権限がありません"}), 403
 
-    data = request.json or {}
+    raw_data = request.get_json(silent=True)
+    if raw_data is not None and not isinstance(raw_data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
+    data = raw_data or {}
     new_mode = data.get("reset_mode")
     target_user_id = data.get("user_id")  # Noneなら全員まとめて変更
 
@@ -108,6 +118,7 @@ def update_reset_mode(shop_id):
             "message": f"{len(histories)}件のリセットモードを '{new_mode}' に変更しました。"
         }), 200
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({"error": f"更新中にエラーが発生しました: {str(e)}"}), 500
+        current_app.logger.exception("リセットモード更新中にエラーが発生しました")
+        return jsonify({"error": "更新中にエラーが発生しました"}), 500
