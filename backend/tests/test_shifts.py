@@ -145,6 +145,22 @@ def test_admin_confirm_rejects_body_without_json_content_type(client, make_shop,
     assert res.status_code == 400
 
 
+def test_admin_confirm_rejects_non_dict_confirmed_shift_entry(client, make_shop, make_user, auth_header):
+    """confirmed_shiftsの要素がオブジェクトでない場合、shift_dateアクセスで例外落ちして
+    500にならず400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="staff6@example.com", password="password123", role="admin", shop=shop)
+    headers = auth_header("staff6@example.com", "password123")
+
+    res = client.post(
+        "/api/admin/shifts/confirm",
+        headers=headers,
+        json={"confirmed_shifts": ["not-an-object"]},
+    )
+
+    assert res.status_code == 400
+
+
 def test_admin_confirm_shifts_rejects_user_id_from_other_shop(client, make_shop, make_user, auth_header):
     """confirmed_shiftsのuser_idが管理者の店舗に実在しない場合（他店舗のユーザー等）は、
     不整合なShiftレコードを作らずスキップする（issue #70）。"""

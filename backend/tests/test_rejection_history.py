@@ -105,6 +105,22 @@ def test_reset_rejection_history_rejects_invalid_reset_type(client, make_shop, m
     assert res.status_code == 400
 
 
+def test_reset_rejection_history_rejects_non_object_body(client, make_shop, make_user, auth_header):
+    """JSON配列などオブジェクト以外のボディは、data.get()呼び出し前に400で弾く（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="rhadmin7@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("rhadmin7@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/rejection_history/reset",
+        headers=admin_headers,
+        json=["not", "an", "object"],
+    )
+
+    assert res.status_code == 400
+
+
 def test_update_reset_mode(client, make_shop, make_user, auth_header, db_session):
     shop = make_shop()
     make_user(email="rhadmin5@example.com", password="password123", role="admin", shop=shop)

@@ -246,7 +246,14 @@ def confirm_shifts():
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     confirmed_shifts_data = data.get("confirmed_shifts", [])
 
-    if not isinstance(confirmed_shifts_data, list) or not confirmed_shifts_data:
+    if (
+        not isinstance(confirmed_shifts_data, list)
+        or not confirmed_shifts_data
+        or not all(
+            isinstance(shift, dict) and isinstance(shift.get("shift_date"), str)
+            for shift in confirmed_shifts_data
+        )
+    ):
         return jsonify({"error": "確定シフトデータがありません"}), 400
 
     try:
