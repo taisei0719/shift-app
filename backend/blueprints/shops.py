@@ -223,6 +223,56 @@ def handle_join_request(user_id):
 
     return jsonify({"message": message}), 200
 
+# -------------------- API: 所属店舗一覧取得 --------------------
+@shops_bp.route("/api/my_shops", methods=["GET"])
+@jwt_required()
+def get_my_shops():
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    memberships = UserShop.query.filter_by(user_id=user_id).all()
+    shop_list = [{
+        "shop_id": m.shop.id,
+        "name": m.shop.name,
+        "location": m.shop.location,
+        "is_active": m.shop.id == user.shop_id,
+    } for m in memberships]
+
+    return jsonify({"shops": shop_list}), 200
+
+# -------------------- API: アクティブ店舗の切替 --------------------
+@shops_bp.route("/api/active_shop", methods=["POST"])
+@jwt_required()
+def switch_active_shop():
+    user_id_str = get_jwt_identity()
+    user_id = int(user_id_str)
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "ユーザーが見つかりません"}), 404
+
+    data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
+    shop_id = data.get("shop_id")
+
+    # 所属している（user_shopsに登録済みの）店舗以外への切替は許可しない
+    membership = UserShop.query.filter_by(user_id=user_id, shop_id=shop_id).first()
+    if not membership:
+        return jsonify({"error": "所属していない店舗には切り替えられません"}), 403
+
+    user.shop_id = shop_id
+    db.session.commit()
+
+    return jsonify({
+        "message": f"アクティブ店舗を '{membership.shop.name}' に切り替えました。",
+        "shop_id": shop_id,
+    }), 200
+
 # -------------------- API: 店舗詳細取得 --------------------
 @shops_bp.route("/api/shop/<int:shop_id>", methods=["GET"])
 @jwt_required()
