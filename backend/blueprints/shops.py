@@ -10,6 +10,7 @@ from flask_jwt_extended import (
     set_access_cookies,
     set_refresh_cookies,
 )
+from sqlalchemy import update
 
 from models import db, User, Shop, UserShop
 from services.position import UNSPECIFIED_POSITION
@@ -100,14 +101,23 @@ def join_shop_request():
         return jsonify({"error": "無効な店舗コードです"}), 404
 
     # 複数店舗所属に対応するため、既に別の店舗に所属していても参加リクエストは送れる。
-    # ただし対象店舗に既に所属している場合と、保留中のリクエストが既にある場合（1ユーザーにつき同時に1件まで）は拒否する。
+    # ただし対象店舗に既に所属している場合は拒否する。
     if UserShop.query.filter_by(user_id=user_id, shop_id=shop.id).first():
         return jsonify({"error": "既にその店舗に所属しています"}), 400
-    if user.shop_request_code:
-        return jsonify({"error": "既に保留中の参加リクエストがあります"}), 400
 
     # 4. リクエスト送信（Userモデルの暫定カラムを更新）
-    user.shop_request_code = shop_code
+    # 保留中のリクエストが既にある場合（1ユーザーにつき同時に1件まで）は拒否する。
+    # 「読み取ってから書き込む」実装だと同時リクエストで両方がshop_request_code未設定を
+    # 読んでしまい後勝ちで上書きされうるため、shop_request_codeがNULLの場合のみ更新する
+    # 原子的なUPDATEで防ぐ。
+    result = db.session.execute(
+        update(User)
+        .where(User.id == user_id, User.shop_request_code.is_(None))
+        .values(shop_request_code=shop_code)
+    )
+    if result.rowcount == 0:
+        db.session.rollback()
+        return jsonify({"error": "既に保留中の参加リクエストがあります"}), 400
     db.session.commit()
 
     return jsonify({"message": f"店舗 '{shop.name}' への参加リクエストをオーナーに送信しました。"}), 200
