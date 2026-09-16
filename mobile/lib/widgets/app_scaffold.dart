@@ -86,6 +86,11 @@ class AppScaffold extends StatelessWidget {
         title: Text('参加リクエスト'),
         onTap: () => context.go('/join_requests'),
       ),
+      ListTile(
+        leading: Icon(Icons.history),
+        title: Text('棄却履歴'),
+        onTap: () => context.go('/shop/$shopId/rejection_history'),
+      ),
     ];
 
     final menuItems = userRole == 'admin' ? adminMenu : staffMenu;

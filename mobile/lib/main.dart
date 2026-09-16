@@ -18,6 +18,7 @@ import 'screens/shop_screen.dart';
 import 'screens/shop_users_screen.dart';
 import 'screens/join_requests_screen.dart';
 import 'screens/auto_adjust_settings_screen.dart';
+import 'screens/rejection_history_screen.dart';
 
 
 
@@ -133,6 +134,13 @@ final _routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final shopId = state.pathParameters['shopId']!;
           return AutoAdjustSettingsScreen(shopId: shopId);
+        },
+      ),
+      GoRoute(
+        path: '/shop/:shopId/rejection_history', // 棄却履歴画面
+        builder: (context, state) {
+          final shopId = state.pathParameters['shopId']!;
+          return RejectionHistoryScreen(shopId: shopId);
         },
       ),
     ],
