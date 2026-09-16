@@ -266,6 +266,19 @@ class AuthNotifier extends AsyncNotifier<User?> {
   return response.data;
   }
 
+  // 従業員のポジション更新（Admin専用）。空文字/nullで未設定に戻せる
+  Future<String?> updateUserPosition(String shopId, int userId, String? position) async {
+    try {
+      final response = await _dio.patch(
+        '/shops/$shopId/users/$userId/position',
+        data: {'position': position},
+      );
+      return response.data['position'] as String?;
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? 'ポジションの更新に失敗しました');
+    }
+  }
+
   // スタッフ用：自分のシフト一覧（月ごと）
   Future<Map<String, dynamic>> fetchUserShiftsByMonth(int year, int month) async {
     try {
