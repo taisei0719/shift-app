@@ -13,6 +13,7 @@ from flask_jwt_extended import (
 
 from models import db, User, Shop
 from services.position import UNSPECIFIED_POSITION
+from services.user_shops import ensure_user_shop_membership
 
 shops_bp = Blueprint("shops", __name__)
 
@@ -51,6 +52,7 @@ def shop_register():
     # 3. 管理者ユーザーの情報を更新し、店舗作成とまとめて1トランザクションでコミットする
     #    （分けてcommitすると、後段で例外が起きた際に店舗だけ作成された不整合データが残るため）
     admin_user.shop_id = shop.id
+    ensure_user_shop_membership(admin_user.id, shop.id)
     db.session.commit()
 
     # 4. DB更新後、クッキーにセットするアクセストークンを再発行する

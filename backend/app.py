@@ -15,6 +15,7 @@ from flask_jwt_extended import JWTManager
 import sentry_sdk
 
 from extensions import limiter
+from services.user_shops import backfill_user_shops
 
 load_dotenv()
 
@@ -184,7 +185,10 @@ def wait_for_db():
 def init_db():
     with app.app_context():
         db.create_all()
-        
+
+        # 既存のUser.shop_id（アクティブ店舗）をuser_shopsへバックフィルする（冪等）
+        backfill_user_shops()
+
         # teststore1の追加
         shop = Shop.query.filter_by(name='teststore1').first()
         if not shop:
