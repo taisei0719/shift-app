@@ -7,13 +7,14 @@ _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.close(_db_fd)
 os.environ["DATABASE_URL"] = f"sqlite:///{_db_path}"
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-32-bytes-minimum")
+os.environ["SENTRY_DSN"] = ""  # テスト実行が実際のSentryプロジェクトにイベントを送らないようにする（load_dotenv()は既存の変数を上書きしないため、popではなく空文字で固定する）
 
 # NOTE: 上でDATABASE_URL等の環境変数を設定した後にimportする必要があるため、
 # 以下のimportをファイル先頭に移動することはできない（意図的なE402違反）。
 import pytest  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 
-from app import app as flask_app  # noqa: E402
+from app import app as flask_app, limiter as _limiter  # noqa: E402
 from models import db as _db, Shop, User  # noqa: E402
 
 
@@ -38,6 +39,7 @@ atexit.register(_cleanup_test_db)
 @pytest.fixture()
 def app():
     flask_app.config.update(TESTING=True)
+    _limiter.reset()
     with flask_app.app_context():
         _db.create_all()
         yield flask_app
@@ -76,13 +78,14 @@ def make_shop(db_session):
 
 @pytest.fixture()
 def make_user(db_session):
-    def _make_user(name="staff", email="staff@example.com", password="password123", role="staff", shop=None):
+    def _make_user(name="staff", email="staff@example.com", password="password123", role="staff", shop=None, position=None):
         user = User(
             name=name,
             email=email,
             role=role,
             password=generate_password_hash(password),
             shop_id=shop.id if shop else None,
+            position=position,
         )
         db_session.add(user)
         db_session.commit()

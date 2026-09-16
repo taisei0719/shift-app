@@ -12,6 +12,13 @@ RUN npm install
 # 全てのファイルをコピー
 COPY . .
 
+# NEXT_PUBLIC_*はnext build時にクライアントバンドルへ静的に埋め込まれるため、
+# ビルド前にARGからENVへ反映しておく必要がある
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+
 # Next.jsアプリを本番用にビルド
 RUN npm run build
 

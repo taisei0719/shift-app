@@ -8,4 +8,4 @@ frontend (Next.js / Tailwind) のUI・デザインに関わる変更を行う前
 
 ## 開発フロー
 
-PBI/SBIの起票、ブランチ命名規約、PR作成〜Claudeレビューの運用は [docs/workflow.md](docs/workflow.md) に従うこと。SBI実装のブランチは `sbi/{issue番号}-{概要}` 形式で作成し、PRは `.github/pull_request_template.md` のDoDチェックリストを満たしてから作成する。
+PBI/SBIの起票、ブランチ命名規約、コミットメッセージ規約、PR作成〜レビューの運用は [docs/workflow.md](docs/workflow.md) に従うこと（具体的な規約はそちらが正、ここには重複させない）。PRは `.github/pull_request_template.md` のDoDチェックリストを満たしてから作成する。
