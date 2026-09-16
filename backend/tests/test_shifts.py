@@ -32,6 +32,46 @@ def test_submit_shift_without_shop_fails(client, make_user, auth_header):
     assert res.status_code == 400
 
 
+def test_submit_shift_request_rejects_literal_null_body(client, make_shop, make_user, auth_header):
+    """JSONのnullリテラルはdata.get()呼び出し前に400で弾く。"""
+    make_user(email="nullbody@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nullbody@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request", headers=headers, data="null", content_type="application/json"
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_missing_date(client, make_shop, make_user, auth_header):
+    """requests[0]にdateが無い場合、TypeErrorで500にならず400を返す。"""
+    make_user(email="nodate@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("nodate@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": [{"start": "09:00", "end": "17:00"}]},
+    )
+
+    assert res.status_code == 400
+
+
+def test_submit_shift_request_rejects_non_dict_request_entry(client, make_shop, make_user, auth_header):
+    """requestsの要素がオブジェクトでない場合、AttributeErrorで500にならず400を返す。"""
+    make_user(email="scalarentry@example.com", password="password123", role="staff", shop=make_shop())
+    headers = auth_header("scalarentry@example.com", "password123")
+
+    res = client.post(
+        "/api/shifts/submit_request",
+        headers=headers,
+        json={"requests": ["not-an-object"]},
+    )
+
+    assert res.status_code == 400
+
+
 def test_get_confirmed_shifts_empty(client, make_shop, make_user, auth_header):
     shop = make_shop()
     make_user(email="staff2@example.com", password="password123", role="staff", shop=shop)

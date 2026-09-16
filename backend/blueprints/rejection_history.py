@@ -1,7 +1,7 @@
 # backend/blueprints/rejection_history.py
 # 棄却履歴の閲覧・リセット関連エンドポイント（Admin専用）
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models import db, User, ShiftRejectionHistory
@@ -70,9 +70,10 @@ def reset_rejection_history(shop_id):
         else:
             return jsonify({"error": "reset_typeは 'all' または 'user' を指定してください"}), 400
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({"error": f"リセット中にエラーが発生しました: {str(e)}"}), 500
+        current_app.logger.exception("棄却履歴リセット中にエラーが発生しました")
+        return jsonify({"error": "リセット中にエラーが発生しました"}), 500
 
 
 # -------------------- API: リセットモード変更 (Admin専用) --------------------
@@ -108,6 +109,7 @@ def update_reset_mode(shop_id):
             "message": f"{len(histories)}件のリセットモードを '{new_mode}' に変更しました。"
         }), 200
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({"error": f"更新中にエラーが発生しました: {str(e)}"}), 500
+        current_app.logger.exception("リセットモード更新中にエラーが発生しました")
+        return jsonify({"error": "更新中にエラーが発生しました"}), 500

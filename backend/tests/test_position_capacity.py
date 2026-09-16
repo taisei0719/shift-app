@@ -115,6 +115,19 @@ def test_auto_adjust_endpoint_uses_shop_scoped_rejection_history(client, make_sh
     assert users_metrics[str(staff_id)]["rejection_rate_before"] == 0.75
 
 
+def test_admin_auto_adjust_without_json_content_type_defaults_to_simulation(client, make_shop, make_user, auth_header):
+    """リクエストにJSONボディ・Content-Typeが無い場合でも、request.jsonの415送出を避けて
+    apply=falseのデフォルト挙動（シミュレーション、200）になることを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="posadmin20@example.com", password="password123", role="admin", shop=shop)
+    admin_headers = auth_header("posadmin20@example.com", "password123")
+
+    res = client.post("/api/admin/shifts/auto_adjust/2026-10-01", headers=admin_headers)
+
+    assert res.status_code == 200
+    assert res.get_json()["assignments"] == []
+
+
 def test_auto_adjust_honors_legacy_flat_capacities(client, make_shop, make_user, auth_header, db_session):
     """SBI #66未マージのフロントエンドが送る旧形式（フラットな{"<hour>": int}）のcapacitiesでも
     position未設定のシフトに対して定員が正しく効くことを確認する（後方互換）。"""
@@ -370,6 +383,24 @@ def test_auto_adjust_config_rejects_literal_null_body(client, make_shop, make_us
         headers=admin_headers,
         data="null",
         content_type="application/json",
+    )
+
+    assert res.status_code == 400
+
+
+def test_auto_adjust_config_rejects_body_without_json_content_type(client, make_shop, make_user, auth_header):
+    """Content-Typeがapplication/json以外だとrequest.jsonは415を送出するため、
+    get_json(silent=True)経由で取得し400を返すことを確認する（issue #109レビュー対応）。"""
+    shop = make_shop()
+    make_user(email="posadmin19@example.com", password="password123", role="admin", shop=shop)
+    shop_id = shop.id
+    admin_headers = auth_header("posadmin19@example.com", "password123")
+
+    res = client.post(
+        f"/api/shop/{shop_id}/auto_adjust/config",
+        headers=admin_headers,
+        data="{}",
+        content_type="text/plain",
     )
 
     assert res.status_code == 400
