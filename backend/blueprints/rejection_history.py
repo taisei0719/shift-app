@@ -37,9 +37,13 @@ def reset_rejection_history(shop_id):
     if not user or user.role != 'admin' or user.shop_id != shop_id:
         return jsonify({"error": "権限がありません"}), 403
 
-    data = request.get_json(silent=True) or {}
-    if not isinstance(data, dict):
+    # ボディなし（None）はデフォルト設定として{}扱いにするが、[]や文字列等の
+    # 非オブジェクトな値は「or {}」だとfalsy値（[]等）がすり抜けてしまうため、
+    # Noneかどうかのチェックを先に行いdictの型検証を必ず通す
+    raw_data = request.get_json(silent=True)
+    if raw_data is not None and not isinstance(raw_data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
+    data = raw_data or {}
     reset_type = data.get("reset_type", "all")   # 'all' or 'user'
     target_user_id = data.get("user_id")          # reset_type='user' の場合に必要
     current_ym = get_current_year_month()
@@ -90,9 +94,10 @@ def update_reset_mode(shop_id):
     if not user or user.role != 'admin' or user.shop_id != shop_id:
         return jsonify({"error": "権限がありません"}), 403
 
-    data = request.get_json(silent=True) or {}
-    if not isinstance(data, dict):
+    raw_data = request.get_json(silent=True)
+    if raw_data is not None and not isinstance(raw_data, dict):
         return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
+    data = raw_data or {}
     new_mode = data.get("reset_mode")
     target_user_id = data.get("user_id")  # Noneなら全員まとめて変更
 
