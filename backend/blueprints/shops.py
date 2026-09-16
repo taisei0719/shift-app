@@ -38,8 +38,16 @@ def shop_register():
          return jsonify({"error": "既に店舗に所属しています"}), 400
 
     data = request.json
+    if not isinstance(data, dict):
+        return jsonify({"error": "リクエスト本文はJSONオブジェクトで指定してください"}), 400
     name = data.get("name")
     location = data.get("location")
+
+    if not isinstance(name, str) or not name.strip():
+        return jsonify({"error": "店舗名は必須です"}), 400
+    name = name.strip()
+    if len(name) > 80:
+        return jsonify({"error": "店舗名は80文字以内で指定してください"}), 400
 
     if Shop.query.filter_by(name=name).first():
         return jsonify({"error": "店舗名が既に存在します"}), 400
