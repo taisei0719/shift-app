@@ -95,6 +95,7 @@ class _AdminCalendarScreenState extends ConsumerState<AdminCalendarScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -109,6 +110,7 @@ class _AdminCalendarScreenState extends ConsumerState<AdminCalendarScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(child: Text(error!)),
@@ -127,6 +129,7 @@ class _AdminCalendarScreenState extends ConsumerState<AdminCalendarScreen> {
       shopName: user?.shopName,
       onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
       },
       body: Column(
@@ -186,16 +189,16 @@ class _AdminCalendarScreenState extends ConsumerState<AdminCalendarScreen> {
                           ...confirmed.map((c) => _buildTimeBar(c['start_time'], c['end_time'],
                             color: Colors.green.shade400,
                             label: '${c['start_time'] ?? ''} - ${c['end_time'] ?? ''}',
-                          )).toList(),
+                          )),
                           // 未確定（希望）もバーで表示（色違い）
                           ...requests.map((r) => _buildTimeBar(r['start_time'], r['end_time'],
                             color: Colors.orange.shade300,
                             label: '${r['start_time'] ?? ''} - ${r['end_time'] ?? ''} (希望)',
-                          )).toList(),
+                          )),
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),

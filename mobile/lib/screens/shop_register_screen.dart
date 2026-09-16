@@ -36,6 +36,7 @@ class _ShopRegisterScreenState extends ConsumerState<ShopRegisterScreen> {
       });
       // 店舗詳細画面に遷移（shopIdが取得できた場合）
       if (shopId != null) {
+        if (!mounted) return;
         context.go('/shop/$shopId');
       }
     } catch (e) {
@@ -62,6 +63,7 @@ class _ShopRegisterScreenState extends ConsumerState<ShopRegisterScreen> {
       shopName: user?.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: Center(

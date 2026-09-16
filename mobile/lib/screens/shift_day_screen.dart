@@ -88,10 +88,12 @@ class _ShiftDayScreenState extends ConsumerState<ShiftDayScreen> {
       final repoNotifier = ref.read(authProvider.notifier);
       final authRepo = repoNotifier as dynamic;
       await authRepo.submitShiftRequests(widget.dateStr, requests);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('シフト希望を提出したで！')));
       await _load(); // 再ロード
       setState(() => requests = []);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('提出失敗: $e')));
     }
   }
@@ -109,6 +111,7 @@ class _ShiftDayScreenState extends ConsumerState<ShiftDayScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -124,6 +127,7 @@ class _ShiftDayScreenState extends ConsumerState<ShiftDayScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(child: Text('エラー: $error')),
@@ -140,6 +144,7 @@ class _ShiftDayScreenState extends ConsumerState<ShiftDayScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: SingleChildScrollView(

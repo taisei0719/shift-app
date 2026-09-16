@@ -38,6 +38,7 @@ class HomeScreen extends ConsumerWidget {
         shopName: '',
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(
@@ -70,6 +71,7 @@ class HomeScreen extends ConsumerWidget {
       shopName: user.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: Center(
@@ -87,6 +89,7 @@ class HomeScreen extends ConsumerWidget {
               label: const Text('ログアウト'),
               onPressed: () async {
                 await ref.read(authProvider.notifier).logout();
+                if (!context.mounted) return;
                 context.go('/');
               },
             ),

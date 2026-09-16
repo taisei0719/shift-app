@@ -71,6 +71,7 @@ class _StaffCalendarScreenState extends ConsumerState<StaffCalendarScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: const Center(child: CircularProgressIndicator()),
@@ -87,6 +88,7 @@ class _StaffCalendarScreenState extends ConsumerState<StaffCalendarScreen> {
         shopName: user?.shopName,
         onLogout: () async {
           await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
           context.go('/');
         },
         body: Center(child: Text(error!)),
@@ -113,6 +115,7 @@ class _StaffCalendarScreenState extends ConsumerState<StaffCalendarScreen> {
       shopName: user?.shopName,
       onLogout: () async {
         await ref.read(authProvider.notifier).logout();
+        if (!context.mounted) return;
         context.go('/');
       },
       body: Column(
