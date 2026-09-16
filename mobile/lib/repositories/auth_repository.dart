@@ -279,6 +279,48 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
+  // 棄却履歴一覧取得（Admin専用）
+  Future<List<Map<String, dynamic>>> fetchRejectionHistory(String shopId) async {
+    try {
+      final response = await _dio.get('/shop/$shopId/rejection_history');
+      final list = response.data['histories'] as List<dynamic>? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e)).toList();
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? '棄却履歴の取得に失敗しました');
+    }
+  }
+
+  // 棄却履歴リセット（Admin専用）。userIdを指定すると個別リセット、nullなら全員リセット
+  Future<String> resetRejectionHistory(String shopId, {int? userId}) async {
+    try {
+      final response = await _dio.post(
+        '/shop/$shopId/rejection_history/reset',
+        data: userId != null
+            ? {'reset_type': 'user', 'user_id': userId}
+            : {'reset_type': 'all'},
+      );
+      return response.data['message'] as String? ?? 'リセットしました';
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? '履歴のリセットに失敗しました');
+    }
+  }
+
+  // リセットモード変更（Admin専用）。userIdを指定すると個別変更、nullなら全員変更
+  Future<String> updateResetMode(String shopId, String resetMode, {int? userId}) async {
+    try {
+      final response = await _dio.post(
+        '/shop/$shopId/rejection_history/reset_mode',
+        data: {
+          'reset_mode': resetMode,
+          if (userId != null) 'user_id': userId,
+        },
+      );
+      return response.data['message'] as String? ?? '更新しました';
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? 'リセットモードの更新に失敗しました');
+    }
+  }
+
   // スタッフ用：自分のシフト一覧（月ごと）
   Future<Map<String, dynamic>> fetchUserShiftsByMonth(int year, int month) async {
     try {
