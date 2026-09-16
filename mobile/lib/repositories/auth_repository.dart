@@ -73,6 +73,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
+  // セッション再取得（店舗切替後など、ユーザー情報を最新化したい場合に使う）
+  Future<void> refreshSession() async {
+    final user = await _checkSession();
+    state = AsyncData(user);
+  }
+
   // -------------------- 3. ログイン処理 --------------------
   Future<void> login(String email, String password) async {
     state = const AsyncLoading(); // 状態をローディング中にする
@@ -279,6 +285,27 @@ class AuthNotifier extends AsyncNotifier<User?> {
     }
   }
 
+  // 所属店舗一覧取得（複数店舗対応）
+  Future<List<Map<String, dynamic>>> fetchMyShops() async {
+    try {
+      final response = await _dio.get('/my_shops');
+      final list = response.data['shops'] as List<dynamic>? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e)).toList();
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? '所属店舗一覧の取得に失敗しました');
+    }
+  }
+
+  // アクティブ店舗の切替（所属店舗のみ切替可能）
+  Future<void> switchActiveShop(int shopId) async {
+    try {
+      await _dio.post('/active_shop', data: {'shop_id': shopId});
+      await refreshSession();
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['error'] ?? '店舗の切替に失敗しました');
+    }
+  }
+
   // 棄却履歴一覧取得（Admin専用）
   Future<List<Map<String, dynamic>>> fetchRejectionHistory(String shopId) async {
     try {
@@ -448,4 +475,12 @@ class AuthNotifier extends AsyncNotifier<User?> {
 // AuthNotifierをアプリ全体で使えるようにするProvider
 final authProvider = AsyncNotifierProvider<AuthNotifier, User?>(() {
   return AuthNotifier();
+});
+
+// ログイン中ユーザーの所属店舗一覧。authProviderのユーザー（特にshopId）が
+// 変わるたびに自動で再取得される（店舗切替後の一覧更新に使う）。
+final myShopsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final user = ref.watch(authProvider).value;
+  if (user == null) return [];
+  return ref.read(authProvider.notifier).fetchMyShops();
 });
