@@ -266,15 +266,6 @@ def init_db():
             db.session.add(config)
             db.session.commit()
 
-# --------------------　手動初期化用URL　--------------------        
-@app.route('/init-db')
-def manual_init_db():
-    try:
-        init_db()
-        return "DB初期化成功", 200
-    except Exception as e:
-        return f"エラー : {str(e)}", 500
-
 # 認証・アカウント関連エンドポイント（register, login, logout, session, account edit/delete）は
 # blueprints/auth.py に切り出し済み（PBI #40）
 
